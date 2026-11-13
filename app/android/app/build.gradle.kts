@@ -8,8 +8,15 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Opt-in local install, isolated from the public app and its release signing config.
+val previewBuild = providers.environmentVariable("DSH_GO_PREVIEW").orNull == "1"
+val signingProperties = if (previewBuild) {
+    file(providers.environmentVariable("DSH_GO_PREVIEW_SIGNING").get())
+} else {
+    rootProject.file("key.properties")
+}
 val keyProps = Properties().apply {
-    rootProject.file("key.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+    signingProperties.takeIf { it.exists() }?.inputStream()?.use { load(it) }
 }
 
 // Debug builds use the release key only when it is all there; they are never the build
@@ -18,6 +25,8 @@ val keyProps = Properties().apply {
 val hasWholeReleaseKey = listOf("storeFile", "keyAlias").all { !keyProps.getProperty(it).isNullOrBlank() } &&
     listOf("storePassword", "keyPassword").all { !keyProps.getProperty(it).isNullOrEmpty() } &&
     file(keyProps.getProperty("storeFile")).exists()
+
+check(!previewBuild || hasWholeReleaseKey) { "Preview builds require a complete dedicated signing configuration" }
 
 // Per-ABI runtime bundles produced by runtime/build-runtime.sh.
 val runtimeOut = rootProject.file("../../runtime/out")
@@ -38,6 +47,10 @@ android {
     namespace = "io.github.ccch1mneyyy.dsh_app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
+    buildFeatures {
+        buildConfig = true
+        resValues = true
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -45,7 +58,9 @@ android {
     }
 
     defaultConfig {
-        applicationId = "io.github.ccch1mneyyy.dsh_app"
+        applicationId = "io.github.ccch1mneyyy.dsh_app" + if (previewBuild) ".preview" else ""
+        manifestPlaceholders["dshAppLabel"] = if (previewBuild) "DSH Go Preview" else "DSH Go"
+        resValue("string", "shortcut_target_package", applicationId!!)
         // java.nio.file (symlinks while unpacking the rootfs) needs API 26.
         minSdk = 26
         // Target 28 like Termux, so the API 29+ exec restriction on app-private
@@ -117,6 +132,9 @@ android {
     }
 
     buildTypes {
+        if (previewBuild) {
+            configureEach { signingConfig = signingConfigs.getByName("release") }
+        }
         debug {
             // tooling/dev-run.sh installs debug over the release build on a phone, data
             // kept: Android only allows that with the same key.

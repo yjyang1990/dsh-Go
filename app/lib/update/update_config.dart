@@ -152,13 +152,15 @@ const _betaTokenDefine = String.fromEnvironment('DSH_BETA_CHANNEL_TOKEN');
 const _betaOriginDefine = String.fromEnvironment('DSH_BETA_CHANNEL_ORIGIN', defaultValue: updateMirrorOrigin);
 
 /// The configuration the app ships with (see the library comment for overrides).
-UpdateSources defaultUpdateSources() => buildUpdateSources(
-  mirror: _mirrorDefine,
-  feed: _feedDefine == _unset ? null : _feedDefine,
-  accelerators: _mirrorsDefine == _unset ? null : _mirrorsDefine,
-  channelToken: _betaTokenDefine,
-  channelOrigin: _betaOriginDefine,
-);
+UpdateSources defaultUpdateSources({bool preview = const bool.fromEnvironment('DSH_GO_PREVIEW')}) => preview
+    ? const UpdateSources(useGithubApi: false, mirrors: [])
+    : buildUpdateSources(
+        mirror: _mirrorDefine,
+        feed: _feedDefine == _unset ? null : _feedDefine,
+        accelerators: _mirrorsDefine == _unset ? null : _mirrorsDefine,
+        channelToken: _betaTokenDefine,
+        channelOrigin: _betaOriginDefine,
+      );
 
 /// [defaultUpdateSources] from the defines' values: [mirror] is the origin of
 /// a copy of the release files ('' = none); [feed] another manifest to ask
