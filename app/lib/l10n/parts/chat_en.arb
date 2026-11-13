@@ -1,4 +1,5 @@
 {
+  "chatAdoptPrediction": "Use draft",
   "chatBackgroundTaskNotice": "Background task notice",
   "chatBackgroundTaskMessage": "Background task message",
   "chatDeclineQuestion": "Skip",
