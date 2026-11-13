@@ -3826,6 +3826,9 @@ class L10nEn extends L10n {
   String get chatAdoptPrediction => 'Use draft';
 
   @override
+  String get chatSuggestedFollowUp => 'Suggested follow-up';
+
+  @override
   String get chatBackgroundTaskNotice => 'Background task notice';
 
   @override

@@ -3643,6 +3643,9 @@ class L10nZh extends L10n {
   String get chatAdoptPrediction => '填入草稿';
 
   @override
+  String get chatSuggestedFollowUp => '建议追问';
+
+  @override
   String get chatBackgroundTaskNotice => '后台任务通知';
 
   @override

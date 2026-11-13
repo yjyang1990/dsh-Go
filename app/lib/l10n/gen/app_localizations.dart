@@ -6746,6 +6746,12 @@ abstract class L10n {
   /// **'填入草稿'**
   String get chatAdoptPrediction;
 
+  /// No description provided for @chatSuggestedFollowUp.
+  ///
+  /// In zh, this message translates to:
+  /// **'建议追问'**
+  String get chatSuggestedFollowUp;
+
   /// No description provided for @chatBackgroundTaskNotice.
   ///
   /// In zh, this message translates to:

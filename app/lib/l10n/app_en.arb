@@ -1109,6 +1109,7 @@
   "diagnosticsForAiDone": "Written — ask the AI to \"check the diagnostics\"",
   "diagnosticsForAiFailed": "Not written: the local runtime is not installed",
   "chatAdoptPrediction": "Use draft",
+  "chatSuggestedFollowUp": "Suggested follow-up",
   "chatBackgroundTaskNotice": "Background task notice",
   "chatBackgroundTaskMessage": "Background task message",
   "chatDeclineQuestion": "Skip",

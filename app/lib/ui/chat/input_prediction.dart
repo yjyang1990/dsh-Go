@@ -4,6 +4,7 @@ import 'package:dsh_remote/dsh_remote.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/l10n.dart';
+import '../theme/app_icons.dart';
 
 /// Host suggestions only enter the existing editor; its listener saves the draft.
 class InputPrediction extends StatefulWidget {
@@ -122,13 +123,73 @@ class _InputPredictionState extends State<InputPrediction> with WidgetsBindingOb
   Widget build(BuildContext context) {
     final prediction = _eligible ? _prediction : null;
     if (prediction == null) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final scaler = MediaQuery.textScalerOf(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Expanded(child: Text(prediction.text, maxLines: 2, overflow: TextOverflow.ellipsis)),
-          TextButton(onPressed: _adopt, child: Text(context.l10n.chatAdoptPrediction)),
-        ],
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colors.surfaceContainerLow.withValues(alpha: theme.brightness == Brightness.dark ? 0.92 : 0.80),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.65)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(AppIcons.generating, size: scaler.scale(16), color: colors.primary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      context.l10n.chatSuggestedFollowUp,
+                      style: theme.textTheme.labelMedium?.copyWith(color: colors.primary, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      prediction.text,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurface, height: 1.4),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    flex: 2,
+                    child: Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: TextButton.icon(
+                        onPressed: _adopt,
+                        style: TextButton.styleFrom(
+                          foregroundColor: colors.primary,
+                          backgroundColor: colors.primary.withValues(alpha: 0.12),
+                          minimumSize: const Size(0, 32),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          shape: const StadiumBorder(),
+                          textStyle: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                        icon: Icon(AppIcons.steer, size: scaler.scale(16)),
+                        label: Text(context.l10n.chatAdoptPrediction, maxLines: 2, overflow: TextOverflow.ellipsis),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
