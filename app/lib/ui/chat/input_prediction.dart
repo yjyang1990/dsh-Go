@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/l10n.dart';
 import '../theme/app_icons.dart';
+import 'voice/voice_controller.dart';
 
 /// Host suggestions only enter the existing editor; its listener saves the draft.
 class InputPrediction extends StatefulWidget {
@@ -14,12 +15,14 @@ class InputPrediction extends StatefulWidget {
     required this.controller,
     required this.read,
     required this.enabled,
+    this.voice,
   });
 
   final Object scope;
   final TextEditingController controller;
   final Future<RemoteInputPrediction?> Function() read;
   final bool enabled;
+  final VoiceInputController? voice;
 
   @override
   State<InputPrediction> createState() => _InputPredictionState();
@@ -36,6 +39,7 @@ class _InputPredictionState extends State<InputPrediction> with WidgetsBindingOb
 
   bool get _eligible =>
       widget.enabled &&
+      !(widget.voice?.active ?? false) &&
       _foreground &&
       _routeCurrent &&
       widget.controller.text.isEmpty &&
@@ -48,6 +52,7 @@ class _InputPredictionState extends State<InputPrediction> with WidgetsBindingOb
     final lifecycle = WidgetsBinding.instance.lifecycleState;
     _foreground = lifecycle == null || lifecycle == AppLifecycleState.resumed;
     widget.controller.addListener(_sync);
+    widget.voice?.addListener(_sync);
   }
 
   @override
@@ -63,6 +68,10 @@ class _InputPredictionState extends State<InputPrediction> with WidgetsBindingOb
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_sync);
       widget.controller.addListener(_sync);
+    }
+    if (oldWidget.voice != widget.voice) {
+      oldWidget.voice?.removeListener(_sync);
+      widget.voice?.addListener(_sync);
     }
     _sync(reset: oldWidget.scope != widget.scope || oldWidget.controller != widget.controller);
   }
@@ -115,6 +124,7 @@ class _InputPredictionState extends State<InputPrediction> with WidgetsBindingOb
     ++_epoch;
     _timer?.cancel();
     widget.controller.removeListener(_sync);
+    widget.voice?.removeListener(_sync);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

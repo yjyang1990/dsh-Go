@@ -151,6 +151,90 @@ class PreviewTavern implements Tavern, TavernPreview {
   @override
   Future<TavernTurnInspection?> inspectTurn(String chatId, {String? nodeId}) async => null;
 
+  // Stage one's tools: the preview keeps none, and says so rather than
+  // making up a roll, a receipt or a saved setting.
+
+  Future<T> _noTool<T>(String operation, {String? chatId}) => Future<T>.error(
+    TavernToolException(
+      code: TavernToolErrorCode.unsupportedCapability,
+      operation: operation,
+      message: 'The preview keeps no tool executions.',
+      committed: false,
+      chatId: chatId,
+    ),
+  );
+
+  @override
+  Future<TavernToolTurnSnapshot?> readToolTurn(String logicalTurnId) => _noTool('readToolTurn');
+
+  @override
+  Future<TavernToolReceipt?> readToolReceipt(String executionId) => _noTool('readToolReceipt');
+
+  @override
+  Future<List<TavernToolTurnSummary>> recentToolTurns(String chatId, {int limit = 20}) =>
+      _noTool('recentToolTurns', chatId: chatId);
+
+  /// The engine sums in one query; the preview adds up its line, a page at
+  /// a time through [path] (as a test's line overrides it), the same way.
+  @override
+  Future<List<TavernPathUsage>> pathUsage(String chatId) async {
+    final buckets = <(String?, int, int), List<int>>{};
+    String? before;
+    while (true) {
+      final page = await path(chatId, limit: 200, beforeNodeId: before);
+      for (final m in page) {
+        final usage = m.reportedUsage;
+        if (m.role != TavernRole.character || usage == null) continue;
+        final at = m.at.toUtc();
+        final sum = buckets[(usage.model, at.weekday, at.hour)] ??= [0, 0, 0, 0];
+        sum[0] += usage.promptTokens;
+        sum[1] += usage.cacheHitTokens;
+        sum[2] += usage.completionTokens;
+        sum[3]++;
+      }
+      if (page.length < 200) break;
+      before = page.first.nodeId;
+    }
+    return [
+      for (final MapEntry(key: (model, weekday, hour), value: sum) in buckets.entries)
+        TavernPathUsage(
+          model: model,
+          utcWeekday: weekday,
+          utcHour: hour,
+          promptTokens: sum[0],
+          cacheHitTokens: sum[1],
+          completionTokens: sum[2],
+          replyCount: sum[3],
+        ),
+    ];
+  }
+
+  @override
+  Future<TavernToolReceipt> rollDice(
+    String chatId, {
+    required String actionId,
+    required String dice,
+    String? label,
+    int? target,
+    String? expectedNodeId,
+  }) => _noTool('rollDice', chatId: chatId);
+
+  @override
+  Future<TavernMemoryDecisionReceipt> resolveMemoryProposal(
+    String proposalId, {
+    required String decisionId,
+    required int expectedVersion,
+    required TavernMemoryDecision decision,
+    required TavernToolContextAnchor expectedContextAnchor,
+  }) => _noTool('resolveMemoryProposal');
+
+  @override
+  Future<TavernToolPolicySnapshot> readToolPolicy({String? chatId}) => _noTool('readToolPolicy', chatId: chatId);
+
+  @override
+  Future<TavernToolPolicyWriteResult> setToolPolicy(Map<String, Object?> patch, {String? chatId}) =>
+      _noTool('setToolPolicy', chatId: chatId);
+
   // Personas ------------------------------------------------------------------
 
   final _personas = <String, TavernPersona>{};
