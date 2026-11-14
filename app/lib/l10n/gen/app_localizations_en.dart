@@ -6124,6 +6124,70 @@ class L10nEn extends L10n {
   String get companionAdaptNetwork => 'no connection';
 
   @override
+  String get automaticDiagnosticsRecover => 'Recover local records';
+
+  @override
+  String get automaticDiagnosticsRecoverHint =>
+      'Only recovers analysis records on this phone, skips retained failures, and never resends old requests.';
+
+  @override
+  String get automaticDiagnosticsTitle => 'Automatic failure analysis';
+
+  @override
+  String get automaticDiagnosticsHint =>
+      'Off by default. Local, foreground and engine-ready only. Same-version failures are merged for 24 hours. Disabling stops new requests; sent data cannot be retracted.';
+
+  @override
+  String get automaticDiagnosticsConsentTitle => 'Enable automatic failure analysis?';
+
+  @override
+  String get automaticDiagnosticsConsent =>
+      'On a failure, the app sends redacted versions, Android system facts, runtime state, error categories, voice stages and its own process exit reasons to the model provider configured on your local engine. Model charges may apply. No chat text, recordings, credentials or raw logs are included. Reports stay in a separate read-only analysis conversation without changing your current chat. No automatic repairs or GitHub publication. Disabling or switching hosts blocks new analyses and attempts to stop existing analysis; data already sent cannot be retracted.';
+
+  @override
+  String get automaticDiagnosticsEnable => 'Agree and enable';
+
+  @override
+  String get automaticDiagnosticsOff => 'Off';
+
+  @override
+  String get automaticDiagnosticsWaiting => 'Waiting for a local connection, foreground and ready engine';
+
+  @override
+  String get automaticDiagnosticsReady => 'Enabled; waiting for a new failure';
+
+  @override
+  String get automaticDiagnosticsCollecting => 'Collecting structured failure facts';
+
+  @override
+  String get automaticDiagnosticsAnalyzing => 'Analyzing in a separate conversation (up to 2 minutes)';
+
+  @override
+  String get automaticDiagnosticsComplete => 'Analysis complete';
+
+  @override
+  String get automaticDiagnosticsCancelled => 'Stopped or interrupted; no automatic retry';
+
+  @override
+  String get automaticDiagnosticsFailed => 'Analysis failed; this failure will not be retried automatically';
+
+  @override
+  String get automaticDiagnosticsStoreFailed => 'Cannot save diagnostics settings or state; automatic analysis stopped';
+
+  @override
+  String get automaticDiagnosticsCancelFailed => 'Stop request failed; check the report conversation and stop manually';
+
+  @override
+  String get automaticDiagnosticsViewReport => 'View latest analysis conversation';
+
+  @override
+  String get automaticDiagnosticsReportHint =>
+      'Opens only when tapped; never interrupts your current chat. The report may still be running or interrupted.';
+
+  @override
+  String get automaticDiagnosticsReportTitle => 'Automatic failure analysis report';
+
+  @override
   String get systemImeTitle => 'System input-method diagnostics';
 
   @override
@@ -23228,6 +23292,300 @@ class L10nEn extends L10n {
   String get tavernChannelKeyCleared => 'The key is cleared when you save';
 
   @override
+  String get tavernDrafts => 'Drafts';
+
+  @override
+  String get tavernDraftsSubtitle => 'Changes wait in a draft until you pick what goes into the real one';
+
+  @override
+  String get tavernDraftsForCard => 'Change this card with AI';
+
+  @override
+  String get tavernDraftsForCardSubtitle => 'In a draft; apply what you pick';
+
+  @override
+  String get tavernDraftsEmpty => 'No drafts yet';
+
+  @override
+  String get tavernDraftsEmptyOwn => 'Start a draft and tell the AI how to change this card.';
+
+  @override
+  String get tavernDraftsEmptyAll =>
+      'Start one from a character\'s page, or from a file: it stays a draft, nothing is imported.';
+
+  @override
+  String get tavernDraftNew => 'New draft';
+
+  @override
+  String get tavernDraftFromFile => 'Draft from a file';
+
+  @override
+  String tavernDraftSeedUnsupported(String name) {
+    return '$name isn\'t a card or a lorebook';
+  }
+
+  @override
+  String get tavernDraft => 'Draft';
+
+  @override
+  String get tavernDraftSubtitle => 'Nothing here is in the real one yet';
+
+  @override
+  String get tavernDraftGone => 'This draft is gone';
+
+  @override
+  String get tavernDraftKindCharacter => 'Card';
+
+  @override
+  String get tavernDraftKindPreset => 'Preset';
+
+  @override
+  String tavernDraftNewSource(String name) {
+    return '$name (not saved yet)';
+  }
+
+  @override
+  String get tavernDraftGreetings => 'Other greetings';
+
+  @override
+  String tavernDraftEntry(int n) {
+    return 'Entry $n';
+  }
+
+  @override
+  String get tavernDraftNoChanges => 'No changes yet';
+
+  @override
+  String get tavernDraftNoChangesHint => 'Tell the AI below what to change';
+
+  @override
+  String get tavernDraftBefore => 'Was';
+
+  @override
+  String get tavernDraftAfter => 'Becomes';
+
+  @override
+  String get tavernDraftAbsent => '(none)';
+
+  @override
+  String get tavernDraftRemoved => 'Removed';
+
+  @override
+  String get tavernDraftAppliedChange => 'Applied';
+
+  @override
+  String tavernDraftDependsOn(int n) {
+    return 'Goes with $n earlier change(s)';
+  }
+
+  @override
+  String get tavernDraftRemoveChange => 'Take this out of the draft';
+
+  @override
+  String tavernDraftApply(int n) {
+    return 'Apply $n';
+  }
+
+  @override
+  String get tavernDraftSaveNew => 'Save as new';
+
+  @override
+  String get tavernDraftSavedNew => 'Saved as new';
+
+  @override
+  String get tavernDraftChecked => 'Checked: nothing found';
+
+  @override
+  String get tavernDraftCannotApply => 'Regex and preset drafts can be previewed, not applied yet';
+
+  @override
+  String tavernDraftApplied(String name) {
+    return 'Applied to $name';
+  }
+
+  @override
+  String get tavernDraftNoChange => 'Same as now: nothing to change';
+
+  @override
+  String tavernDraftNotApplied(String reason) {
+    return 'Not applied: $reason';
+  }
+
+  @override
+  String get tavernDraftUnconfirmed =>
+      'The write isn\'t confirmed yet. Don\'t repeat it; check the history in a while.';
+
+  @override
+  String tavernDraftApplyUnknown(String reason) {
+    return 'No answer ($reason); tapping again continues the same one';
+  }
+
+  @override
+  String tavernDraftBehind(String name) {
+    return '$name changed after this draft began (maybe just now, by applying). Continue from it and look the changes over again.';
+  }
+
+  @override
+  String get tavernDraftCatchUp => 'Continue from now';
+
+  @override
+  String get tavernDraftChangedMeanwhile => 'The draft just changed; reloaded';
+
+  @override
+  String get tavernDraftPending => 'The last write isn\'t confirmed; it can\'t be applied again yet';
+
+  @override
+  String get tavernDraftDelete => 'Delete draft';
+
+  @override
+  String get tavernDraftDeleteTitle => 'Delete this draft?';
+
+  @override
+  String get tavernDraftDeleteBody => 'Only the draft goes; what was applied stays.';
+
+  @override
+  String get tavernDraftAskHint => 'What to change? e.g. a cooler greeting';
+
+  @override
+  String get tavernDraftAiSend => 'Ask the AI';
+
+  @override
+  String get tavernDraftAiStop => 'Stop';
+
+  @override
+  String get tavernDraftAiTitle => 'AI';
+
+  @override
+  String get tavernDraftAiRunning => 'Working…';
+
+  @override
+  String get tavernDraftAiDone => 'Done: the changes are above; pick and apply';
+
+  @override
+  String get tavernDraftAiStopped => 'Stopped';
+
+  @override
+  String get tavernDraftAiConflict => 'The draft changed meanwhile; the AI stopped';
+
+  @override
+  String get tavernDraftAiBudget => 'Four requests used; it stopped here';
+
+  @override
+  String get tavernDraftAiFailed => 'Something went wrong';
+
+  @override
+  String get tavernDraftAiInterrupted => 'Interrupted (the app closed)';
+
+  @override
+  String get tavernDraftEarlier => 'Asked before';
+
+  @override
+  String tavernDraftRunReceipts(int changes, int requests) {
+    return '$changes edit(s) · $requests request(s)';
+  }
+
+  @override
+  String get tavernDraftHistory => 'Versions';
+
+  @override
+  String get tavernDraftHistoryEmpty => 'No versions recorded yet';
+
+  @override
+  String get tavernDraftHistoryNote =>
+      'Going back saves it as a new version; later ones stay. Pictures and chats aren\'t touched.';
+
+  @override
+  String tavernDraftVersion(int n) {
+    return 'Version $n';
+  }
+
+  @override
+  String get tavernDraftVersionCurrent => 'Current';
+
+  @override
+  String get tavernDraftRestore => 'Go back to it';
+
+  @override
+  String tavernDraftRestoreTitle(int n) {
+    return 'Go back to version $n?';
+  }
+
+  @override
+  String get tavernDraftRestoreBody => 'It is saved as a new version.';
+
+  @override
+  String tavernDraftRestored(int n) {
+    return 'Back to version $n';
+  }
+
+  @override
+  String get tavernDraftRestoreMoved => 'It changed meanwhile; try again';
+
+  @override
+  String get tavernDraftPrompt => 'Prompt with the draft';
+
+  @override
+  String get tavernDraftPromptSubtitle => 'What the next turn would send with the ticked changes; nothing is sent';
+
+  @override
+  String get tavernDraftPromptFrom => 'After which chat';
+
+  @override
+  String get tavernDraftPromptFirst => 'A new chat';
+
+  @override
+  String get tavernDraftPromptText => 'Next line (optional)';
+
+  @override
+  String get tavernDraftPromptTextHint => 'What you would say';
+
+  @override
+  String get tavernDraftPromptShow => 'Show the prompt';
+
+  @override
+  String get tavernDraftPromptComplete => 'Prompt';
+
+  @override
+  String get tavernDraftPromptUnsupported => 'Part of this card can\'t be put together faithfully in a preview';
+
+  @override
+  String get tavernDraftPromptNote => 'The card\'s scripts don\'t run in a preview.';
+
+  @override
+  String tavernDraftUsagePartial(String prompt, String completion) {
+    return 'Reported: in $prompt · out $completion (some requests reported nothing)';
+  }
+
+  @override
+  String get tavernDraftTrial => 'Try it';
+
+  @override
+  String get tavernDraftTrialSubtitle => 'A few lines with the draft in a chat of its own; real chats aren\'t touched';
+
+  @override
+  String get tavernDraftTrialNote => 'The model is really asked and billed as used; four lines at most.';
+
+  @override
+  String tavernDraftTrialLine(int n) {
+    return 'Line $n';
+  }
+
+  @override
+  String get tavernDraftTrialMore => 'Add a line';
+
+  @override
+  String get tavernDraftTrialPlay => 'Start';
+
+  @override
+  String get tavernDraftTrialRunning => 'Playing…';
+
+  @override
+  String get tavernDraftTrialDone => 'Done';
+
+  @override
+  String get tavernDraftTrialUnsupported => 'This draft can\'t be tried yet';
+
+  @override
   String get updateCheck => 'Check for updates';
 
   @override
@@ -25788,17 +26146,17 @@ class L10nEn extends L10n {
   String get workshopErrorOtherOrigin => 'This was installed from a different Workshop.';
 
   @override
-  String get workshopErrorSignIn => 'Sign in to the forum first.';
+  String get workshopErrorSignIn => 'Sign in with GitHub first.';
 
   @override
   String get workshopErrorConsent => 'Agree to let the Workshop check your sign-in first.';
 
   @override
-  String get workshopErrorForumMismatch =>
-      'The forum you signed in to isn\'t the one this Workshop uses. Sign in again.';
+  String get workshopErrorAccountMismatch =>
+      'The account you signed in with isn\'t the kind this Workshop uses. Sign in again.';
 
   @override
-  String get workshopErrorForumDown => 'The forum can\'t be reached right now. Try again later.';
+  String get workshopErrorAccountDown => 'Couldn\'t confirm who you are with GitHub right now. Try again later.';
 
   @override
   String get workshopErrorPreferences => 'Couldn\'t save the record on this phone, so this step didn\'t continue.';
@@ -25817,25 +26175,25 @@ class L10nEn extends L10n {
   String get workshopErrorGeneric => 'That didn\'t work. Try again later.';
 
   @override
-  String get workshopDisclosureTitle => 'Let the Workshop confirm who you are';
+  String get workshopDisclosureTitle => 'Let the Workshop confirm your GitHub identity';
 
   @override
   String get workshopDisclosureLead =>
-      'To submit, manage your submissions or report something, the Workshop needs to know who you are. To find out, your forum sign-in credential (a User API Key) is sent to the Workshop service below, which asks the forum which account it belongs to.';
+      'To submit, manage your submissions or report something, the Workshop needs to know who you are. To find out, your GitHub sign-in credential is sent to the Workshop service below, which asks GitHub which account it belongs to.';
 
   @override
   String get workshopDisclosureWorker => 'Workshop that receives the credential';
 
   @override
-  String get workshopDisclosureForum => 'Forum that confirms who you are';
+  String get workshopDisclosureAccount => 'Account service that confirms who you are';
 
   @override
   String get workshopDisclosureUse =>
-      'It is sent when you submit, view or withdraw your submissions, or report something. The Workshop only uses it to confirm your identity with the forum and does not keep it.';
+      'It is sent when you submit, view or withdraw your submissions, or report something. The Workshop only uses it to confirm your identity with GitHub and does not keep it.';
 
   @override
   String get workshopDisclosureKept =>
-      'This phone only remembers that you agreed to these two addresses, with no extra copy of the credential. If either changes, you\'ll be asked again.';
+      'The credential stays on this phone, which also remembers that you agreed to these two addresses. If either changes, you\'ll be asked again.';
 
   @override
   String get workshopDisclosureStale => 'The addresses just changed. Please confirm the ones shown now.';
@@ -25849,6 +26207,59 @@ class L10nEn extends L10n {
   @override
   String get workshopDisclosureUnsaved =>
       'Your consent counts for now, but it couldn\'t be saved on this phone. You may be asked again.';
+
+  @override
+  String get workshopSignInTitle => 'Sign in with GitHub';
+
+  @override
+  String get workshopSignInLead =>
+      'The Workshop knows authors by their GitHub account. This sign-in can only read your public profile (username and account number), not your repositories.';
+
+  @override
+  String get workshopSignInPreparing => 'Getting a code from GitHub…';
+
+  @override
+  String get workshopSignInSteps =>
+      'Enter this code on GitHub\'s verification page and authorize, then come back here.';
+
+  @override
+  String get workshopSignInOpen => 'Copy and open GitHub';
+
+  @override
+  String get workshopSignInCopied => 'Code copied';
+
+  @override
+  String get workshopSignInWaiting => 'Waiting for you to authorize on GitHub…';
+
+  @override
+  String get workshopSignInExpired => 'The code expired.';
+
+  @override
+  String get workshopSignInDenied => 'You cancelled the authorization on GitHub.';
+
+  @override
+  String get workshopSignInNetwork => 'Can\'t reach GitHub. Check the connection and try again.';
+
+  @override
+  String get workshopSignInUnconfigured => 'This Workshop hasn\'t set up GitHub sign-in yet.';
+
+  @override
+  String get workshopSignInAgain => 'Get a new code';
+
+  @override
+  String workshopAccountLine(String login) {
+    return 'GitHub account $login';
+  }
+
+  @override
+  String get workshopAccountSignOut => 'Sign out';
+
+  @override
+  String get workshopAccountSignedOut =>
+      'Signed out. To withdraw the authorization completely, revoke it under Applications in your GitHub settings.';
+
+  @override
+  String get workshopAccountSignOutFailed => 'Couldn\'t sign out. Try again later.';
 
   @override
   String get workshopInstalledEmptyTitle => 'Nothing from the Workshop yet';
@@ -25999,7 +26410,7 @@ class L10nEn extends L10n {
   String get workshopMinePublishHint => 'Shows up in Discover once approved';
 
   @override
-  String get workshopMineSignInTitle => 'Submissions belong to a forum account';
+  String get workshopMineSignInTitle => 'Submissions belong to a GitHub account';
 
   @override
   String get workshopMineSignInMessage => 'Sign in to see what you have sent in.';
@@ -26009,7 +26420,7 @@ class L10nEn extends L10n {
 
   @override
   String get workshopMineConsentMessage =>
-      'The workshop checks who you are with your forum sign-in. Agree to that to see your submissions.';
+      'The workshop checks who you are with your GitHub sign-in. Agree to that to see your submissions.';
 
   @override
   String get workshopMineConsentAction => 'See details';
@@ -26165,14 +26576,14 @@ class L10nEn extends L10n {
   String get workshopReportDone => 'Report received. A reviewer will look at it.';
 
   @override
-  String get workshopReportSignInTitle => 'Reporting needs a forum account';
+  String get workshopReportSignInTitle => 'Reporting needs a GitHub account';
 
   @override
   String get workshopReportSignInMessage => 'Sign in to send a report.';
 
   @override
   String get workshopReportConsentMessage =>
-      'The workshop checks who you are with your forum sign-in. Agree to that to report.';
+      'The workshop checks who you are with your GitHub sign-in. Agree to that to report.';
 
   @override
   String get workshopReportUnknownTitle => 'Not sure it arrived';
@@ -26199,13 +26610,13 @@ class L10nEn extends L10n {
   String get workshopPublishClosedMessage => 'What you already sent is still under My uploads.';
 
   @override
-  String get workshopPublishSignInTitle => 'Sign in to the forum first';
+  String get workshopPublishSignInTitle => 'Sign in with GitHub first';
 
   @override
-  String get workshopPublishSignInMessage => 'The Workshop uses your forum account to know who is submitting.';
+  String get workshopPublishSignInMessage => 'The Workshop uses your GitHub account to know who is submitting.';
 
   @override
-  String get workshopPublishProfileTitle => 'Couldn\'t read your forum account yet';
+  String get workshopPublishProfileTitle => 'Couldn\'t read your GitHub account yet';
 
   @override
   String get workshopPublishProfileMessage => 'Submitting needs to know which account you are.';
@@ -26513,13 +26924,13 @@ class L10nEn extends L10n {
   String get workshopPublishLetGoTitle => 'Let go of this phone\'s record?';
 
   @override
-  String workshopPublishLetGoAccount(String forum, String worker) {
-    return 'Only this phone\'s unfinished record for the account on forum $forum at Workshop $worker is removed.';
+  String workshopPublishLetGoAccount(String worker) {
+    return 'Only this phone\'s unfinished record for this GitHub account at Workshop $worker is removed.';
   }
 
   @override
-  String workshopPublishLetGoAll(String forum, String worker) {
-    return 'The submission records on this phone can\'t be read as a whole. Letting go removes the unfinished-submission records of every account on this phone, not just the one for forum $forum at Workshop $worker.';
+  String workshopPublishLetGoAll(String worker) {
+    return 'The submission records on this phone can\'t be read as a whole. Letting go removes the unfinished-submission records of every account on this phone, not just the one for this GitHub account at Workshop $worker.';
   }
 
   @override
