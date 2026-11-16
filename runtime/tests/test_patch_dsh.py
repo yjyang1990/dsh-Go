@@ -42,7 +42,7 @@ sha = lambda text: hashlib.sha256(text.encode()).hexdigest()
 
 
 def read(path):
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return f.read()
 
 
@@ -74,7 +74,7 @@ class PatchDsh(unittest.TestCase):
 
     def run_cli(self, *extra):
         return subprocess.run([sys.executable, "-I", RTBUILD, "patch-dsh", "--prefix", self.prefix,
-                               "--patches", self.patches, *extra],
+                               "--patches", self.patches, "--target", "android", *extra],
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                               env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
 
@@ -126,7 +126,7 @@ class PatchDsh(unittest.TestCase):
         previous = pins_path.read_bytes()
         previous_pins = load(pins_path)
         args = SimpleNamespace(prefix=self.prefix, patches=self.patches,
-                               dsh_version="2.0.0", record=True, out=None)
+                               dsh_version="2.0.0", target="android", record=True, out=None)
 
         def interrupted_dump(value, output, **options):
             # Fault injection after a real partial write; this does not fill the disk.
@@ -144,7 +144,7 @@ class PatchDsh(unittest.TestCase):
             self.prefix = os.path.join(self.tmp.name, name)
             target = Path(self.prefix, REL)
             target.parent.mkdir(parents=True)
-            target.write_text(ORIGINAL, newline="\n")
+            target.write_text(ORIGINAL)
             return target
 
         # Recording requires original input: never retry --record on the patched tree.
@@ -222,7 +222,8 @@ class PatchDsh(unittest.TestCase):
                 raise OSError("interrupted third patch replace")
             replace(source, target)
 
-        args = SimpleNamespace(prefix=self.prefix, patches=self.patches, dsh_version="1.0.0", record=False, out=None)
+        args = SimpleNamespace(prefix=self.prefix, patches=self.patches,
+                               dsh_version="1.0.0", target="android", record=False, out=None)
         with mock.patch.object(rtbuild.os, "replace", side_effect=interrupt_third):
             with self.assertRaisesRegex(OSError, "interrupted third patch replace"):
                 rtbuild.cmd_patch_dsh(args)
@@ -255,6 +256,31 @@ class PatchDsh(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertEqual(read(self.target), final)
         self.assertEqual(load(applied), ["guard.diff", "aa-later.diff"])
+
+        # The host smoke consumes this recorded order, not the patch filenames.
+        root = Path(self.tmp.name, "host-root")
+        (root / "opt").mkdir(parents=True)
+        os.rename(self.prefix, root / "opt/dsh")
+        client = root / "opt/dsh-go/dsh-go-bridge/lib/client.js"
+        client.parent.mkdir(parents=True)
+        client.write_text("// layout fixture\n")
+        overlay = root / "etc/dsh-app/dsh-web.patch.yml"
+        overlay.parent.mkdir(parents=True)
+        overlay.write_text("- insert:\n    - name: /opt/dsh-go/dsh-go-bridge/lib/index.js\n")
+        manifest = root / "manifest.json"
+        manifest.write_text(json.dumps({"dshVersion": "1.0.0", "dshPatches": load(applied)}))
+        script = read(os.path.join(HERE, "..", "test-host.sh"))
+        code = script.split('python3 -I - "$ROOT" "$HERE/patches/pins.json" "$MANIFEST" <<\'PY\'', 1)[1]
+        code = code.split("\n", 1)[1].split("\nPY\n", 1)[0]
+        verified = subprocess.run([sys.executable, "-I", "-c", code, str(root), pins_path, str(manifest)],
+                                  capture_output=True, text=True)
+        self.assertEqual(verified.returncode, 0, verified.stdout + verified.stderr)
+
+        # The final hash alone cannot reveal an omitted earlier patch.
+        manifest.write_text(json.dumps({"dshVersion": "1.0.0", "dshPatches": ["aa-later.diff"]}))
+        missing = subprocess.run([sys.executable, "-I", "-c", code, str(root), pins_path, str(manifest)],
+                                 capture_output=True, text=True)
+        self.assertNotEqual(missing.returncode, 0)
 
     def test_invalid_series_fails_before_recording_or_writing(self):
         for names in ([], ["guard.diff", "guard.diff"], ["missing.diff"],

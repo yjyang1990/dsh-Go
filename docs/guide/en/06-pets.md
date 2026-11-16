@@ -10,7 +10,7 @@ Pick a pet to keep you company in chats. When a turn finishes, fails, or waits f
 Tap **Pets** in the Appearance group of Settings, or touch and hold the pet in a chat and choose **Pet settings**. Choose a pet first; the other settings appear below it.
 
 - Choose **Deepy**, **Whale girl** or **None**.
-- **Size**: **Small**, **Standard** or **Large**. Standard by default.
+- **Size**: **Small**, **Standard** or **Large**. Standard by default. If a pet looks too small or too big, choose **Custom** and drag the slider to 50–300% of Standard; the preview above follows, and it saves when you let go.
 - **Quiet mode**: animations only, no bubbles.
 
 The pet, size and Quiet mode apply both in and outside the app.
@@ -21,7 +21,7 @@ The pet, size and Quiet mode apply both in and outside the app.
 - Tap a bubble to jump to its chat; swipe up to dismiss it.
 - Touch and hold the pet for **Change pet**, **Hide for 1 hour** and **Pet settings**. While it's hidden, **Show now** appears on the pet page.
 
-## Show outside the app
+## Show outside the app (Android)
 
 1. On the pet page, turn on **Show outside the app** (off by default).
 2. Allow "Display over other apps" when asked. If phone control's accessibility service is on, no extra permission is needed. Without permission, the switch turns itself off and shows **Not allowed**.
@@ -37,7 +37,11 @@ While she is in the floating window, one tap plays with her: her head, face and 
 
 On Android 13 and later, if the switch still won't turn on after visiting system settings, **Switch disabled** appears on the pet page. Tap it for brand-specific steps to **Allow restricted settings**.
 
-## Action wheel and screenshot questions
+## Pet picture in picture on iPhone
+
+Under [Phone control settings](dshgo://open/phone), pet picture in picture is optional and off by default; phone control does not require PiP or a selected pet. When enabled, iOS displays its standard PiP window and may still suspend background work. The window currently supports the pixel pet only; the Companion room's WebView character is available inside the app, not in PiP. The Android overlay permission, action wheel and screenshot question below do not apply on iPhone.
+
+## Action wheel and screenshot questions (Android)
 
 Touch and hold the floating pet. A fan of round buttons opens toward the inside of the screen, each with its name on the outer side. Keep your finger down and slide toward an action: it grows and its name is highlighted; release to choose it. Slide back onto the pet or outside the fan before releasing to cancel. If you release without sliding, the fan stays open: tap an action, or tap anywhere else to close it. The fan mirrors at the opposite screen edge; tapping and ordinary dragging are unchanged. Small screens or large fonts use a scrollable list when the fan will not fit; release without sliding, then scroll and tap.
 
@@ -45,7 +49,7 @@ Choose **Screenshot & ask DSH-Go** to hide the pet and wheel, capture the curren
 
 Capture requires Android 11 or later and phone control's accessibility service to be enabled. Overlay permission alone is not enough. Pages protected against screenshots are not bypassed. The image uses only the app's private temporary cache, which is removed once read into the draft; it is not saved to the gallery. If a phone blocks opening the app from the background, tap the notification to continue.
 
-## Quick ask, bubble decisions and voice
+## Quick ask, bubble decisions and voice (Android floating window)
 
 Long-press the floating pet and choose Quick ask to open its input bar. The target line names the conversation and host; switch to a new conversation if needed. Messages go through normal chat and appear in its history. If the host or connection changes, reopen the bar to confirm the target. Back or a tap outside closes the bar.
 
@@ -91,7 +95,7 @@ The page has three tabs:
 - **Installed**: what came from the Workshop onto this phone. A new version, or an item withdrawn by its author or a reviewer, is marked here; open an item to update or uninstall it. This tab works offline.
 - **My uploads**: what you sent in and where each one stands in review. Sign in with your GitHub account first.
 
-To submit: tap **Submit** under **My uploads**, pick a pet you imported or your current companion, fill in the name, author, license and source link, check the packed result, tick **I confirm I have the right to share this** and send it. A pet comes with a preview picture by default, the first frame of its idle animation, and you can turn it off; for a companion you can pick a PNG as its cover (at most 512 pixels a side and 2 MB), or leave it and the first letter of its name is shown. A reviewer looks at it first, and it shows up under **Browse** once approved; a rejection says why, and you can fix it and send it again. To take one back, open it and tap **Withdraw**.
+To submit: tap **Submit** under **My uploads**, pick a pet you imported, your current companion, or tap **Choose a file** to pick a pet or companion zip directly (no need to import it first; a file in the wrong format is turned away right there). Only a name is needed: the English name, ID, author, license and source link are optional, and when left empty they become the other name, an ID made from the name, your GitHub username, Author permission and your GitHub page. Then check the packed result, tick **I confirm I have the right to share this** and send it. A pet comes with a preview picture by default, the first frame of its idle animation, and you can turn it off; for a companion you can pick a PNG as its cover (at most 512 pixels a side and 2 MB), or leave it and the first letter of its name is shown. Once it passes the format checks it is listed right away under **Browse**; if someone reports it, a reviewer looks and takes it down with a reason if needed. To take one back, open it and tap **Withdraw**.
 
 If the phone's record of an unfinished submission can't be read, or keeps failing to clear, that step offers **Let go of this record**. It only deletes the record on this phone (if the phone's submission records can't be read as a whole, it clears the unfinished records of every account on this phone, and the confirmation says so) and doesn't ask the Workshop to cancel anything: if the Workshop already received the submission, it stays under **My uploads**; if not, you'll need to submit again.
 

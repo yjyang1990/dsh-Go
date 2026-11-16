@@ -417,7 +417,8 @@ class PhoneControl private constructor(private val app: Context) : PhoneEnv, Con
     fun policiesMap(): Map<String, Any?> {
         val p = policies()
         val labels = LinkedHashMap<String, String>()
-        for (pkg in (p.denyPackages + p.confirmEveryWritePackages + PhonePolicies().denyPackages + PhonePolicies().confirmEveryWritePackages).distinct()) {
+        for (pkg in (p.denyPackages + p.confirmEveryWritePackages + p.alwaysAllowPackages +
+                PhonePolicies().denyPackages + PhonePolicies().confirmEveryWritePackages).distinct()) {
             label(pkg)?.let { labels[pkg] = it }
         }
         return p.toMap() + mapOf("labels" to labels, "defaults" to PhonePolicies().toMap(),
@@ -766,9 +767,6 @@ class PhoneControl private constructor(private val app: Context) : PhoneEnv, Con
             SerialWorker.Outcome.Interrupted -> mapOf("ok" to false, "reason" to AppStrings.get(app, R.string.phone_stopped))
         }
     }
-
-    /** Reads the existing immutable gate snapshot without refreshing phone state. */
-    fun backgroundProbeDiagnostics(): Map<String, Any?> = background.inputProbeDiagnostics()
 
     fun setSkillSavePrompt(enabled: Boolean): Boolean {
         prefs.edit().putBoolean(K_SKILL_PROMPT, enabled).apply()

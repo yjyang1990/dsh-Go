@@ -216,16 +216,14 @@ class PhoneTaskSessionsTest {
         assertFalse(invoke(null).isError)
     }
 
-    @Test fun environmentStopStillFencesLaterRunsUntilExplicitResume() {
+    @Test fun environmentStopFencesLaterRunsOnlyUntilTheRunEnds() {
         assertFalse(invoke("A").isError)
         val record = task("A")
         sessions.stopAll("screen off")
         time.addAndGet(record.tasks.stopHoldMs + 1)
         assertFalse(record.tasks.isStopped())
-        assertTrue(invoke("A", "2").isError)
-        end("A")
-        assertTrue(invoke("A", "2").isError)
-        assertTrue(sessions.resume(record))
+        assertTrue(invoke("A", "2").isError) // 本轮还没结束：新调用被拒。
+        end("A") // host 结束本轮：停止只作用于被停的那一轮。
         assertFalse(invoke("A", "2").isError)
     }
 
@@ -265,8 +263,7 @@ class PhoneTaskSessionsTest {
         enabled = true
         end("A", "already-ended")
         assertTrue(invoke("A", "already-ended").isError)
-        assertTrue(invoke("A").isError)
-        end("A") // Host end before the next run is also supported.
+        end("A") // Host end: the next run starts fresh.
         assertFalse(invoke("A", "2").isError)
         assertTrue(invoke("A").isError)
     }
@@ -297,13 +294,12 @@ class PhoneTaskSessionsTest {
         assertTrue(invoke("A").isError)
     }
 
-    @Test fun nonScreenStopRevokesRecoveryBeforeAfterHoldExpiryAndAfterHostEnd() {
-        for (boundary in listOf("user", "service", "expired", "ended")) {
+    @Test fun nonScreenStopRevokesRecoveryBeforeAndAfterHoldExpiry() {
+        for (boundary in listOf("user", "service", "expired")) {
             assertFalse(invoke(boundary).isError)
             val old = task(boundary)
             sessions.stopAll("screen off", PhoneTasks.StopSource.SCREEN_OFF)
             if (boundary == "expired") time.addAndGet(old.tasks.stopHoldMs + 1)
-            if (boundary == "ended") end(boundary)
             if (boundary == "user") assertTrue(sessions.stop(old, "user stop"))
             else sessions.stopAll("service left", PhoneTasks.StopSource.ENVIRONMENT)
             sessions.stopAll("second screen receiver", PhoneTasks.StopSource.SCREEN_OFF)
@@ -972,17 +968,26 @@ class PhoneTaskSessionsTest {
         assertFalse(invoke("A").isError) // ended fences belong to the retired launch only
     }
 
-    @Test fun userStopSurvivesTimeAndLaterTurnsUntilExplicitResume() {
+    @Test fun userStopOnlyFencesTheTurnItStopped() {
         invoke("A")
         val a = task("A")
         sessions.stop(a, "user")
         time.addAndGet(10 * 60_000)
+        assertTrue(invoke("A", "2").isError) // 本轮未结束，时间过去也不放行。
+        end("A")
+        assertFalse(invoke("A", "2").isError) // 下一轮恢复。
+        assertTrue(invoke("A", "1").isError) // 已结束的 run 不会被重开。
+    }
+
+    @Test fun exactHostEndClearsTheStopHoldAndSessionFenceForTheNextRun() {
+        assertFalse(invoke("A").isError)
+        val record = task("A")
+        assertTrue(sessions.stop(record, "user"))
+        assertTrue(record.tasks.isStopped())
         assertTrue(invoke("A", "2").isError)
         end("A")
-        assertTrue(invoke("A", "3").isError)
-        sessions.resume(a)
-        assertFalse(invoke("A", "3").isError)
-        assertTrue(invoke("A", "1").isError) // explicit resume does not reopen an ended run
+        assertFalse(record.tasks.isStopped()) // cancelPending 清掉停止 hold。
+        assertFalse(invoke("A", "2").isError)
     }
 
     @Test fun newerAdmissionRevokesOldReturnWithoutFinishingTheNewRun() {
@@ -1444,7 +1449,7 @@ class PhoneTaskSessionsTest {
             val a = task("A")
             assertEquals(a.tasks.snapshot().id, checkNotNull(request.owner).taskId)
             sessions.stop(a, "stop while confirmation pending")
-            Decision.ALLOW_ALL_FOR_TASK
+            Decision.ALLOW_APP_FOR_TASK
         }
         assertTrue(sessions.run(admit("A"), PhoneToolCatalog.TAP, mapOf("screen" to "s1", "id" to 1)).isError)
         assertEquals(0L, actions.get())
@@ -1560,15 +1565,17 @@ class PhoneTaskSessionsTest {
 
     @Test fun explicitResumeAllowsOnlyFutureCallsForTheChosenSession() {
         invoke("A"); invoke("B")
-        val a = task("A"); val b = task("B")
-        sessions.stop(a, "user A"); sessions.stop(b, "user B")
+        val b = task("B")
+        sessions.stop(task("A"), "user A"); sessions.stop(b, "user B")
         end("A")
         time.addAndGet(120_000)
-        assertTrue(invoke("A", "next").isError)
-        assertTrue(sessions.resume(a))
+        // A 的那一轮已被 host 结束：停止不再拦下一轮，已结束的旧 run 也不会重开。
         assertFalse(invoke("A", "next").isError)
-        assertTrue(invoke("A", "1").isError) // exact old run end never reopens
+        assertTrue(invoke("A", "1").isError)
+        // B 的停止还没结束：必须显式 resume 才能继续。
         assertTrue(invoke("B", "next").isError)
+        assertTrue(sessions.resume(b))
+        assertFalse(invoke("B", "next").isError)
     }
 
     @Test fun lateLegacyBodyCleanupUsesItsOldIdWithoutEndingTheNextLaunchScope() {
@@ -1769,22 +1776,31 @@ class PhoneTaskSessionsTest {
         } finally { exit.countDown() }
     }
 
-    @Test fun resourceWaitPreservesTheExactPreparedPlanThroughTheActualCoreDispatch() {
+    @Test fun resourceWaitRefreshesTheMainPlanForTheOriginalSelectedPackage() {
         assertFalse(invoke("holder", tool = PhoneToolCatalog.SCREEN).isError)
-        val prepared = TestSystemLaunch(SystemTarget.Known(appEntries.single()))
+        val selected = appEntries.single()
+        val prepared = TestSystemLaunch(SystemTarget.Known(selected))
+        val updated = AppEntry("Renamed", PhoneAppIdentity(selected.packageName, 20234))
+        val refreshed = TestSystemLaunch(SystemTarget.Known(updated))
         val preparations = AtomicLong(); val launches = AtomicLong(); val waiting = CountDownLatch(1)
-        prepareLaunch = { preparations.incrementAndGet(); time.addAndGet(5_000); prepared }
+        prepareLaunch = { app ->
+            assertEquals(selected.packageName, app.packageName)
+            val count = preparations.incrementAndGet()
+            time.addAndGet(5_000)
+            if (count == 1L) prepared else refreshed
+        }
         launch = { actual, dispatch ->
-            assertSame(prepared, actual); assertTrue(dispatch.commitStart()); launches.incrementAndGet()
+            assertSame(refreshed, actual); assertTrue(dispatch.commitStart()); launches.incrementAndGet()
             SysResult(false, "attempted once", actual.target)
         }
         changed = { if (sessions.snapshot().any { it["sessionId"] == "B" && it["waitingForApp"] != null }) waiting.countDown() }
-        val call = pool.submit<ToolOutput> { openApp("B", "example.app", background = false) }
+        val call = pool.submit<ToolOutput> { openApp("B", selected.label, background = false) }
         assertTrue(waiting.await(5, TimeUnit.SECONDS)); assertEquals(1L, preparations.get()); assertEquals(0L, launches.get())
         assertEquals(0L, sessions.snapshot().single { it["sessionId"] == "B" }["waitingForMs"]) // PM time is not resource-wait time.
+        appEntries = listOf(updated, AppEntry(selected.label, PhoneAppIdentity("other.app", 30345)))
         end("holder")
         assertTrue(call.get(5, TimeUnit.SECONDS).text.contains("attempted once"))
-        assertEquals(1L, preparations.get()); assertEquals(1L, launches.get())
+        assertEquals(2L, preparations.get()); assertEquals(1L, launches.get())
     }
 
     @Test fun appAliasesUseBothPackageAndFullUidAndPublishOnlyTheRequestersOwnPackage() {
@@ -1925,10 +1941,12 @@ class PhoneTaskSessionsTest {
         } finally { bodyExit.countDown(); cleanupExit.countDown() }
     }
 
-    @Test fun chooserHasNoInventedKnownIdentityAndDispatchesItsOriginalPlanOnce() {
+    @Test fun chooserHasNoInventedKnownIdentityAndIsNotConfirmedAgain() {
         assertFalse(invoke("holder", tool = PhoneToolCatalog.SCREEN).isError)
         val chooser = TestSystemLaunch(SystemTarget.UserChoice, "url")
         val prepared = AtomicLong(); val started = AtomicLong(); val waiting = CountDownLatch(1)
+        val confirmations = AtomicLong()
+        confirm = { confirmations.incrementAndGet(); Decision.ALLOW_ONCE }
         prepareUrl = { prepared.incrementAndGet(); chooser }
         launch = { plan, dispatch ->
             assertSame(chooser, plan); assertTrue(dispatch.commitStart()); started.incrementAndGet()
@@ -1940,7 +1958,7 @@ class PhoneTaskSessionsTest {
         assertEquals(mapOf("kind" to "unknown"), sessions.snapshot().single { it["sessionId"] == "B" }["waitingForApp"])
         end("holder")
         assertTrue(b.get(5, TimeUnit.SECONDS).text.contains("chooser attempted"))
-        assertEquals(1L, prepared.get()); assertEquals(1L, started.get())
+        assertEquals(2L, prepared.get()); assertEquals(0L, confirmations.get()); assertEquals(1L, started.get())
         assertTrue(task("B").holdsUnknownApp); assertTrue(task("B").heldApps.isEmpty())
     }
 

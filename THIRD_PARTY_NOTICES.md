@@ -308,10 +308,10 @@ Libraries.dev metal-fx, translated to Flutter GLSL.
 | mobile_scanner（pub 包，含 Android 插件代码） | 7.5.0 | BSD-3-Clause | Copyright (c) 2022, Julian Steenbakker | Remote「扫码配对电脑」的相机扫码和相册识图 |
 | ML Kit Barcode Scanning（`com.google.mlkit:barcode-scanning`，模型随 APK 打包） | 17.3.0 | [ML Kit 服务条款](https://developers.google.com/ml-kit/terms)（Google 免费分发的二进制，非开源） | Google LLC | mobile_scanner 的二维码识别，在手机本地运行，不需要 Google Play 服务 |
 | CameraX（`androidx.camera:*`，mobile_scanner 的依赖） | 随 mobile_scanner 7.5.0 | Apache-2.0 | The Android Open Source Project | 扫码时的相机预览 |
-| ONNX Runtime（`com.microsoft.onnxruntime:onnxruntime-android`） | 1.23.2 | MIT | Copyright (c) Microsoft Corporation | 语音通话在手机上跑判停模型 |
+| ONNX Runtime（`com.microsoft.onnxruntime:onnxruntime-android`） | 1.27.0 | MIT | Copyright (c) Microsoft Corporation | 语音通话在手机上跑判停模型 |
 | Silero VAD v6.2（模型文件 `assets/speech/silero_vad.onnx`） | `be95df9` | MIT | Copyright (c) 2020-present Silero Team | 语音通话判断有没有在说话 |
 | smart-turn v3.2（模型文件 `assets/speech/smart-turn-v3.2-cpu.onnx`） | `f766f81` | BSD-2-Clause | Copyright (c) 2024–2025, Daily | 语音通话判断一句话说完没有 |
-| sherpa-onnx（pub 包 `sherpa_onnx`、`sherpa_onnx_android`） | 1.12.36 | Apache-2.0 | Xiaomi Corporation 与 k2-fsa 贡献者 | 手机上的流式语音识别；它带的 `libonnxruntime.so` 与上面 ONNX Runtime 1.23.2 相同，只打包一份 |
+| sherpa-onnx（pub 包 `sherpa_onnx`、`sherpa_onnx_android_*`） | 1.13.4 | Apache-2.0 | Xiaomi Corporation 与 k2-fsa 贡献者 | 手机上的流式语音识别；它带的 `libonnxruntime.so` 也是 ONNX Runtime 1.27.0，只打包一份 |
 | Streaming Zipformer 中英双语模型（不随 APK，按需下载，csukuangfj/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20） | `98590b7` | Apache-2.0 | csukuangfj；上游 pfluo/k2fsa-zipformer-chinese-english-mixed | 实时字幕；许可全文随 APK 的 `assets/licenses/streaming-asr-model-APACHE-2.0.txt` |
 
 ### tawcroot（tawc，MIT）
@@ -388,7 +388,7 @@ APK 内置的 Linux 运行时由 `runtime/build-runtime.sh` 构建，以下组�
 
 | 组件 | 版本 | 来源 | 许可 |
 |---|---|---|---|
-| proot | 5.1.107.98 | Termux（源码 https://github.com/termux/proot） | GPL-2.0（`licenses/proot-COPYING.txt`） |
+| proot | 5.1.107.102 | Termux（源码 https://github.com/termux/proot） | GPL-2.0（`licenses/proot-COPYING.txt`） |
 | libtalloc | 2.5.0 | Termux | LGPL-3.0-or-later（`licenses/libtalloc-notice.txt`） |
 | libandroid-shmem | 0.7 | Termux | BSD-3-Clause（`licenses/libandroid-shmem-copyright.txt`） |
 | Ubuntu Base 与软件包（tzdata、ca-certificates、git 及依赖） | 24.04.5 | Canonical / Ubuntu | 各包自带，见 `/usr/share/doc/` |
@@ -397,7 +397,7 @@ APK 内置的 Linux 运行时由 `runtime/build-runtime.sh` 构建，以下组�
 | pnpm | 11.28.5 | npm | MIT |
 | DeepSeek Harness 主包（`@deepseek-ai/dsh`） | 0.2.1-rc.4 | npm | MIT；构建补丁集合由 `runtime/patches/pins.json` 决定 |
 
-GPL / LGPL 组件的对应源码：proot、libtalloc、libandroid-shmem 的二进制取自 Termux 官方 apt 仓库（https://packages.termux.dev/apt/termux-main ），`runtime/build-runtime.sh` 固定了每个 .deb 的 SHA-256。源码分别在 https://github.com/termux/proot （tag `v5.1.107.98`，构建时一并下载并核对哈希）、https://www.samba.org/ftp/talloc/ （2.5.0）、https://github.com/termux/libandroid-shmem （0.7）；Termux 的构建配方在 https://github.com/termux/termux-packages 。本项目对这三个二进制的修改只有上面说的 DT_NEEDED / DT_SONAME 改名。
+GPL / LGPL 组件的对应源码：proot、libtalloc、libandroid-shmem 的二进制取自 Termux 官方 apt 仓库（https://packages.termux.dev/apt/termux-main ），`runtime/build-runtime.sh` 固定了每个 .deb 的 SHA-256。源码分别在 https://github.com/termux/proot （tag `v5.1.107.102`，构建时一并下载并核对哈希）、https://www.samba.org/ftp/talloc/ （2.5.0）、https://github.com/termux/libandroid-shmem （0.7）；Termux 的构建配方在 https://github.com/termux/termux-packages 。本项目对这三个二进制的修改只有上面说的 DT_NEEDED / DT_SONAME 改名。
 
 ### npm 传递依赖与发行核验
 

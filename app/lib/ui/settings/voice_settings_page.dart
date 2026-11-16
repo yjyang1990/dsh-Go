@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../companion/companion_voice_source.dart';
 import '../../l10n/l10n.dart';
+import '../../speech/speech_audio.dart';
 import '../../speech/speech_settings.dart';
 import '../../state/streaming_asr_model_state.dart';
 import '../../state/voice_model_state.dart';
@@ -96,7 +97,7 @@ class VoiceSettingsTile extends ConsumerWidget {
     icon: AppIcons.voice,
     tint: tint,
     spot: SettingsIndex.entry(SettingsPageId.voice),
-    value: Text(voiceModeLabel(context.l10n, ref.watch(voiceSettingsProvider))),
+    value: Text(voiceModeLabel(context.l10n, wordsForIos ? VoiceMode.system : ref.watch(voiceSettingsProvider))),
     onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const VoiceSettingsPage())),
   );
 }
@@ -146,40 +147,45 @@ class _VoiceSettingsPageState extends ConsumerState<VoiceSettingsPage> {
         SettingsSection(
           title: l10n.voiceModeSection,
           children: [
-            for (final mode in VoiceMode.values)
-              Semantics(
-                checked: selected == mode,
-                inMutuallyExclusiveGroup: true,
-                child: SettingsTile(
-                  key: ValueKey('voice-mode-${mode.name}'),
-                  title: voiceModeLabel(l10n, mode),
-                  subtitle: switch (mode) {
-                    VoiceMode.auto => l10n.voiceModeAutoHint,
-                    VoiceMode.deepseek => l10n.voiceModeDeepseekHint,
-                    VoiceMode.system => l10n.voiceModeSystemHint,
-                    VoiceMode.engine => l10n.voiceModeEngineHint,
-                    VoiceMode.cloud => l10n.voiceModeCloudHint,
-                  },
-                  trailing: SizedBox.square(
-                    dimension: 32,
-                    child: Icon(selected == mode ? AppIcons.radioOn : AppIcons.radioOff, size: 24),
+            if (wordsForIos)
+              SettingsTile(title: voiceModeLabel(l10n, VoiceMode.system), subtitle: l10n.iosVoiceSystemHint),
+            if (!wordsForIos)
+              for (final mode in VoiceMode.values)
+                Semantics(
+                  checked: selected == mode,
+                  inMutuallyExclusiveGroup: true,
+                  child: SettingsTile(
+                    key: ValueKey('voice-mode-${mode.name}'),
+                    title: voiceModeLabel(l10n, mode),
+                    subtitle: switch (mode) {
+                      VoiceMode.auto => l10n.voiceModeAutoHint,
+                      VoiceMode.deepseek => l10n.voiceModeDeepseekHint,
+                      VoiceMode.system => l10n.voiceModeSystemHint,
+                      VoiceMode.engine => l10n.voiceModeEngineHint,
+                      VoiceMode.cloud => l10n.voiceModeCloudHint,
+                    },
+                    trailing: SizedBox.square(
+                      dimension: 32,
+                      child: Icon(selected == mode ? AppIcons.radioOn : AppIcons.radioOff, size: 24),
+                    ),
+                    onTap: () => unawaited(ref.read(voiceSettingsProvider.notifier).setMode(mode)),
                   ),
-                  onTap: () => unawaited(ref.read(voiceSettingsProvider.notifier).setMode(mode)),
                 ),
-              ),
           ],
         ),
-        if (selected == VoiceMode.cloud) const _CloudAsrForm(),
-        SettingsSection(
-          title: l10n.voiceModelSection,
-          footer: Text(l10n.voiceModelFooter),
-          children: const [VoiceModelCard()],
-        ),
-        SettingsSection(
-          title: l10n.speechLiveSection,
-          footer: Text(l10n.speechLiveFooter),
-          children: const [StreamingAsrModelCard()],
-        ),
+        if (!wordsForIos && selected == VoiceMode.cloud) const _CloudAsrForm(),
+        if (!wordsForIos)
+          SettingsSection(
+            title: l10n.voiceModelSection,
+            footer: Text(l10n.voiceModelFooter),
+            children: const [VoiceModelCard()],
+          ),
+        if (!wordsForIos)
+          SettingsSection(
+            title: l10n.speechLiveSection,
+            footer: Text(l10n.speechLiveFooter),
+            children: const [StreamingAsrModelCard()],
+          ),
         SettingsSection(
           title: l10n.speechCallSection,
           footer: Text(l10n.speechCallFooter),
@@ -199,28 +205,36 @@ class _VoiceSettingsPageState extends ConsumerState<VoiceSettingsPage> {
               title: l10n.speechCallBargeIn,
               subtitle: l10n.speechCallBargeInHint,
               value: call.bargeIn,
-              onChanged: (on) => unawaited(calls.update(call.copyWith(bargeIn: on))),
+              onChanged: (on) => unawaited(calls.edit((saved) => saved.copyWith(bargeIn: on))),
+            ),
+            SettingsSegmentTile<CallPause>(
+              key: const ValueKey('speech-call-pause'),
+              title: l10n.speechCallPause,
+              subtitle: l10n.speechCallPauseHint,
+              segments: callPauseSegments(l10n),
+              selected: call.pause,
+              onChanged: (pause) => unawaited(calls.edit((saved) => saved.copyWith(pause: pause))),
             ),
             SettingsSwitchTile(
               key: const ValueKey('speech-call-spoken'),
               title: l10n.speechCallSpoken,
               subtitle: l10n.speechCallSpokenHint,
               value: call.spoken,
-              onChanged: (on) => unawaited(calls.update(call.copyWith(spoken: on))),
+              onChanged: (on) => unawaited(calls.edit((saved) => saved.copyWith(spoken: on))),
             ),
             SettingsSwitchTile(
               key: const ValueKey('speech-call-speaker'),
               title: l10n.speechCallSpeaker,
               subtitle: l10n.speechCallSpeakerHint,
               value: call.speaker,
-              onChanged: (on) => unawaited(calls.update(call.copyWith(speaker: on))),
+              onChanged: (on) => unawaited(calls.edit((saved) => saved.copyWith(speaker: on))),
             ),
             SettingsSwitchTile(
               key: const ValueKey('speech-call-cue'),
               title: l10n.speechCallCue,
               subtitle: l10n.speechCallCueHint,
               value: call.cue,
-              onChanged: (on) => unawaited(calls.update(call.copyWith(cue: on))),
+              onChanged: (on) => unawaited(calls.edit((saved) => saved.copyWith(cue: on))),
             ),
           ],
         ),
@@ -536,10 +550,12 @@ class StreamingAsrModelCard extends ConsumerWidget {
       StreamingAsrModelStatus.absent => (l10n.voiceModelAbsent, theme.colorScheme.onSurfaceVariant),
       StreamingAsrModelStatus.downloading => ('${(model.fraction * 100).floor()}%', theme.colorScheme.onSurfaceVariant),
       StreamingAsrModelStatus.verifying => (l10n.voiceModelPreparing, theme.colorScheme.onSurfaceVariant),
+      StreamingAsrModelStatus.ready when model.blocked => (l10n.speechLiveBlocked, colors.danger),
       StreamingAsrModelStatus.ready => (l10n.voiceModelReady, colors.success),
       StreamingAsrModelStatus.failed => (l10n.voiceModelFailed, colors.danger),
     };
     final note = switch (model.status) {
+      StreamingAsrModelStatus.ready when model.blocked => l10n.speechLiveBlockedNote,
       StreamingAsrModelStatus.ready => l10n.speechLiveReadyNote(total),
       StreamingAsrModelStatus.downloading ||
       StreamingAsrModelStatus.absent when partial => l10n.voiceModelBytes(voiceModelMegabytes(model.doneBytes), total),

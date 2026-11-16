@@ -80,6 +80,7 @@ class VoiceInputController extends ChangeNotifier with WidgetsBindingObserver {
     bool Function()? modelReady,
     this._cloud,
     this._cloudLikely,
+    this._signedIn,
     this._liveWords,
     this.onRecognized,
     this.requiredProviderId,
@@ -88,7 +89,13 @@ class VoiceInputController extends ChangeNotifier with WidgetsBindingObserver {
        _inputOwner = inputOwner ?? client,
        _modelReady = modelReady ?? _noModel,
        _observing = observeLifecycle {
-    if (_observing) WidgetsBinding.instance.addObserver(this);
+    if (_observing) {
+      final binding = WidgetsBinding.instance;
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+        _foreground = binding.lifecycleState == AppLifecycleState.resumed;
+      }
+      binding.addObserver(this);
+    }
     unawaited(refresh());
   }
 
@@ -116,6 +123,9 @@ class VoiceInputController extends ChangeNotifier with WidgetsBindingObserver {
   /// A cloud recognizer is probably there (settings only, nothing asked):
   /// the microphone shows even without a phone or engine recognizer.
   final bool Function()? _cloudLikely;
+
+  /// Signed in to a DeepSeek account (for saying why DeepSeek cannot listen).
+  final bool Function()? _signedIn;
 
   /// Words as they are spoken, from the phone's streaming recognizer (null
   /// when its model is not downloaded): shown as provisional text while a
@@ -332,7 +342,7 @@ class VoiceInputController extends ChangeNotifier with WidgetsBindingObserver {
           !_caps.recorder
               ? appL10n.chatVoiceMicrophoneFailed
               : _runMode == VoiceMode.deepseek
-              ? appL10n.speechNoCredential
+              ? (_signedIn?.call() ?? false ? appL10n.speechAccountUnusable : appL10n.speechNoCredential)
               : appL10n.speechCloudNotSetUp,
           change: true,
         ),
@@ -343,7 +353,7 @@ class VoiceInputController extends ChangeNotifier with WidgetsBindingObserver {
         _runMode == VoiceMode.system || (_runMode == VoiceMode.auto && _caps.recognizer && !_caps.systemUnreliable);
     if (system && !_caps.recognizer) {
       _finish();
-      _say(VoiceMessage(appL10n.voiceChooseSystem, change: true));
+      _say(VoiceMessage(wordsForIos ? appL10n.iosVoiceAllowSystem : appL10n.voiceChooseSystem, change: true));
       return;
     }
     final value = input.value;
