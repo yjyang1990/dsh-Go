@@ -468,11 +468,13 @@ class SshHostLink implements HostLink {
     if (transport == null || _closed) return false;
     try {
       await transport.ping(timeout: timeout);
+      if (!identical(transport, _transport)) return false;
       _missedPings = 0;
       return true;
     } catch (_) {
+      if (!identical(transport, _transport)) return false;
       _missedPings++;
-      if (_missedPings >= 2 && identical(transport, _transport)) {
+      if (_missedPings >= 2) {
         _lost(
           HostLinkError(
             HostLinkErrorKind.unreachable,
@@ -567,9 +569,10 @@ class SshHostLink implements HostLink {
         // Network changed under us: a quick ping tells whether the socket
         // survived; a dead one triggers reconnect without waiting for the
         // regular keepalive.
+        final transport = _transport;
         unawaited(() async {
           final alive = await _ping(const Duration(seconds: 5));
-          if (!alive) {
+          if (!alive && identical(transport, _transport)) {
             _backoff.reset();
             _lost(
               HostLinkError(
