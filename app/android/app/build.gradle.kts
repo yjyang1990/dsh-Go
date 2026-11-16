@@ -8,6 +8,25 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+abstract class GenerateShortcuts : DefaultTask() {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val template: RegularFileProperty
+
+    @get:Input
+    abstract val applicationId: Property<String>
+
+    @get:OutputDirectory
+    abstract val outputDirectory: DirectoryProperty
+
+    @TaskAction
+    fun generate() {
+        val output = outputDirectory.file("xml/shortcuts.xml").get().asFile
+        output.parentFile.mkdirs()
+        output.writeText(template.get().asFile.readText().replace("@SHORTCUT_TARGET_PACKAGE@", applicationId.get()))
+    }
+}
+
 // Opt-in local install, isolated from the public app and its release signing config.
 val previewBuild = providers.environmentVariable("DSH_GO_PREVIEW").orNull == "1"
 val signingProperties = if (previewBuild) {
@@ -49,7 +68,6 @@ android {
     ndkVersion = flutter.ndkVersion
     buildFeatures {
         buildConfig = true
-        resValues = true
     }
 
     compileOptions {
@@ -60,7 +78,6 @@ android {
     defaultConfig {
         applicationId = "io.github.ccch1mneyyy.dsh_app" + if (previewBuild) ".preview" else ""
         manifestPlaceholders["dshAppLabel"] = if (previewBuild) "DSH Go Preview" else "DSH Go"
-        resValue("string", "shortcut_target_package", applicationId!!)
         // java.nio.file (symlinks while unpacking the rootfs) needs API 26.
         minSdk = 26
         // Target 28 like Termux, so the API 29+ exec restriction on app-private
@@ -148,6 +165,23 @@ android {
             // Ours on top of Flutter's: phone control's privileged process and
             // its TLS libraries are reached by class name (see the file).
             proguardFiles("proguard-rules.pro")
+        }
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        val variantName = variant.name.replaceFirstChar { it.uppercaseChar() }
+        val shortcuts = tasks.register<GenerateShortcuts>("generate${variantName}Shortcuts") {
+            template.set(layout.projectDirectory.file("src/main/shortcuts.xml"))
+            applicationId.set(variant.applicationId)
+            outputDirectory.set(layout.buildDirectory.dir("generated/res/shortcuts/${variant.name}"))
+        }
+        // ShortcutParser parses intents with system resources, so targetPackage must be literal.
+        variant.sources.res?.addGeneratedSourceDirectory(shortcuts, GenerateShortcuts::outputDirectory)
+        tasks.withType<Test>().matching { it.name == "test${variantName}UnitTest" }.configureEach {
+            inputs.file(shortcuts.flatMap { it.outputDirectory.file("xml/shortcuts.xml") })
+            systemProperty("shortcutsXml", shortcuts.get().outputDirectory.file("xml/shortcuts.xml").get().asFile.absolutePath)
         }
     }
 }
