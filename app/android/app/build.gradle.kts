@@ -8,8 +8,34 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+abstract class GenerateShortcuts : DefaultTask() {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val template: RegularFileProperty
+
+    @get:Input
+    abstract val applicationId: Property<String>
+
+    @get:OutputDirectory
+    abstract val outputDirectory: DirectoryProperty
+
+    @TaskAction
+    fun generate() {
+        val output = outputDirectory.file("xml/shortcuts.xml").get().asFile
+        output.parentFile.mkdirs()
+        output.writeText(template.get().asFile.readText().replace("@SHORTCUT_TARGET_PACKAGE@", applicationId.get()))
+    }
+}
+
+// Opt-in local install, isolated from the public app and its release signing config.
+val previewBuild = providers.environmentVariable("DSH_GO_PREVIEW").orNull == "1"
+val signingProperties = if (previewBuild) {
+    file(providers.environmentVariable("DSH_GO_PREVIEW_SIGNING").get())
+} else {
+    rootProject.file("key.properties")
+}
 val keyProps = Properties().apply {
-    rootProject.file("key.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+    signingProperties.takeIf { it.exists() }?.inputStream()?.use { load(it) }
 }
 
 // Debug builds use the release key only when it is all there; they are never the build
@@ -18,6 +44,8 @@ val keyProps = Properties().apply {
 val hasWholeReleaseKey = listOf("storeFile", "keyAlias").all { !keyProps.getProperty(it).isNullOrBlank() } &&
     listOf("storePassword", "keyPassword").all { !keyProps.getProperty(it).isNullOrEmpty() } &&
     file(keyProps.getProperty("storeFile")).exists()
+
+check(!previewBuild || hasWholeReleaseKey) { "Preview builds require a complete dedicated signing configuration" }
 
 // Per-ABI runtime bundles produced by runtime/build-runtime.sh.
 val runtimeOut = rootProject.file("../../runtime/out")
@@ -42,6 +70,9 @@ android {
     useLibrary("android.test.base")
     useLibrary("android.test.runner")
     ndkVersion = flutter.ndkVersion
+    buildFeatures {
+        buildConfig = true
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -49,7 +80,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = "io.github.ccch1mneyyy.dsh_app"
+        applicationId = "io.github.ccch1mneyyy.dsh_app" + if (previewBuild) ".preview" else ""
+        manifestPlaceholders["dshAppLabel"] = if (previewBuild) "DSH Go Preview" else "DSH Go"
         // java.nio.file (symlinks while unpacking the rootfs) needs API 26.
         minSdk = 26
         // Target 28 like Termux, so the API 29+ exec restriction on app-private
@@ -124,6 +156,9 @@ android {
     }
 
     buildTypes {
+        if (previewBuild) {
+            configureEach { signingConfig = signingConfigs.getByName("release") }
+        }
         debug {
             // tooling/dev-run.sh installs debug over the release build on a phone, data
             // kept: Android only allows that with the same key.
@@ -135,6 +170,23 @@ android {
             // Ours on top of Flutter's: phone control's privileged process and
             // its TLS libraries are reached by class name (see the file).
             proguardFiles("proguard-rules.pro")
+        }
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        val variantName = variant.name.replaceFirstChar { it.uppercaseChar() }
+        val shortcuts = tasks.register<GenerateShortcuts>("generate${variantName}Shortcuts") {
+            template.set(layout.projectDirectory.file("src/main/shortcuts.xml"))
+            applicationId.set(variant.applicationId)
+            outputDirectory.set(layout.buildDirectory.dir("generated/res/shortcuts/${variant.name}"))
+        }
+        // ShortcutParser parses intents with system resources, so targetPackage must be literal.
+        variant.sources.res?.addGeneratedSourceDirectory(shortcuts, GenerateShortcuts::outputDirectory)
+        tasks.withType<Test>().matching { it.name == "test${variantName}UnitTest" }.configureEach {
+            inputs.file(shortcuts.flatMap { it.outputDirectory.file("xml/shortcuts.xml") })
+            systemProperty("shortcutsXml", shortcuts.get().outputDirectory.file("xml/shortcuts.xml").get().asFile.absolutePath)
         }
     }
 }

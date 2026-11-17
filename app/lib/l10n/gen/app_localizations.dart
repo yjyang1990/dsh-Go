@@ -6776,6 +6776,18 @@ abstract class L10n {
   /// **'写不进去：本机运行时还没装好'**
   String get diagnosticsForAiFailed;
 
+  /// No description provided for @chatAdoptPrediction.
+  ///
+  /// In zh, this message translates to:
+  /// **'填入草稿'**
+  String get chatAdoptPrediction;
+
+  /// No description provided for @chatSuggestedFollowUp.
+  ///
+  /// In zh, this message translates to:
+  /// **'建议追问'**
+  String get chatSuggestedFollowUp;
+
   /// No description provided for @chatBackgroundTaskNotice.
   ///
   /// In zh, this message translates to:

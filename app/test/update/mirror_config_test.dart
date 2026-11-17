@@ -23,6 +23,16 @@ const _mirrorFeed = '$_mirror/update.json';
 const _mirrorApk = '$_mirror/download/0.9.0/$_apk';
 
 void main() {
+  test('preview builds never query or download public app updates', () async {
+    final sources = defaultUpdateSources(preview: true);
+    final http = FakeHttp({});
+    final result = await UpdateChecker(http: http, sources: sources).check();
+    expect(result, isA<CheckFailed>());
+    expect((result as CheckFailed).failure, CheckFailure.noRelease);
+    expect(http.urls, isEmpty);
+    expect(sources.downloadUrls([Uri.parse(_githubApk)]), isEmpty);
+  });
+
   group('defaults', () {
     final sources = buildUpdateSources();
 
