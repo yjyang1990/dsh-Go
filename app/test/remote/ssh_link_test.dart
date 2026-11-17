@@ -16,6 +16,30 @@ import 'package:flutter_test/flutter_test.dart';
 import 'support/fake_ssh.dart';
 import 'support/wait.dart';
 
+class _DelayedPingTransport extends FakeTransport {
+  _DelayedPingTransport(super.remote);
+
+  final pings = <Completer<void>>[];
+  Completer<void> _pingStarted = Completer<void>();
+
+  Future<Completer<void>> waitForPing(int index) async {
+    while (pings.length <= index) {
+      await _pingStarted.future;
+    }
+    return pings[index];
+  }
+
+  @override
+  Future<void> ping({Duration timeout = const Duration(seconds: 10)}) {
+    final ping = Completer<void>();
+    pings.add(ping);
+    final started = _pingStarted;
+    _pingStarted = Completer<void>();
+    started.complete();
+    return ping.future;
+  }
+}
+
 /// Fast backoff so reconnect tests take milliseconds.
 Backoff quick({int? maxAttempts = 5}) =>
     Backoff(initial: const Duration(milliseconds: 10), max: const Duration(milliseconds: 40), maxAttempts: maxAttempts);
@@ -416,6 +440,93 @@ void main() {
     expect(server.transports.length, greaterThanOrEqualTo(2));
     expect(l.status.isConnected, isTrue);
   });
+
+  test('a late failed kick from an old transport leaves the reconnected transport open', () async {
+    final old = _DelayedPingTransport(server.remote);
+    var firstConnect = true;
+    final l = SshHostLink(
+      config: sampleSsh,
+      loadSecrets: () async => const SshSecrets(password: 'pw'),
+      transportFactory: (params, verify) async {
+        if (!firstConnect) return server.connect(params, verify);
+        firstConnect = false;
+        expect(await verify(server.hostKey), isTrue);
+        server.transports.add(old);
+        return old;
+      },
+      connectClient: connector.call,
+      backoff: quick(),
+      keepAliveInterval: const Duration(hours: 1),
+    );
+    links.add(l);
+    final client = await l.open();
+
+    l.kick();
+    l.kick();
+    expect(old.pings, hasLength(2));
+    final reconnected = nextStatus(l, (s) => s.isConnected, what: '旧连接的第一次 ping 失败后重连');
+    old.pings.first.completeError(TimeoutException('first old ping'));
+    await reconnected;
+    await Future<void>.delayed(Duration.zero);
+    expect(server.transports, hasLength(2));
+    final replacement = server.last;
+    expect(replacement.isClosed, isFalse);
+    expect(l.currentClient, same(client));
+
+    old.pings.last.completeError(TimeoutException('late old ping'));
+    await Future<void>.delayed(Duration.zero);
+    expect(replacement.isClosed, isFalse, reason: 'an old ping must not close the new transport');
+    expect(l.status.isConnected, isTrue);
+    expect(server.transports, hasLength(2));
+  });
+
+  for (final oldPingSucceeds in [false, true]) {
+    test('old ping ${oldPingSucceeds ? 'success' : 'failure'} preserves new keepalive misses', () async {
+      final old = _DelayedPingTransport(server.remote);
+      final replacement = _DelayedPingTransport(server.remote);
+      final controlled = [old, replacement];
+      final l = SshHostLink(
+        config: sampleSsh,
+        loadSecrets: () async => const SshSecrets(password: 'pw'),
+        transportFactory: (params, verify) async {
+          if (controlled.isEmpty) return server.connect(params, verify);
+          expect(await verify(server.hostKey), isTrue);
+          final transport = controlled.removeAt(0);
+          server.transports.add(transport);
+          return transport;
+        },
+        connectClient: connector.call,
+        backoff: quick(),
+        keepAliveInterval: const Duration(milliseconds: 20),
+      );
+      links.add(l);
+      await l.open();
+      l.kick();
+      final oldPing = await old.waitForPing(0);
+      final reconnected = nextStatus(l, (s) => s.isConnected, what: '旧 transport 断开后重连');
+      old.drop();
+      await reconnected;
+
+      if (!oldPingSucceeds) oldPing.completeError(TimeoutException('late old ping'));
+      final first = await replacement.waitForPing(0).timeout(const Duration(seconds: 5));
+      expect(replacement.isClosed, isFalse);
+      first.completeError(TimeoutException('first new ping'));
+      final second = await replacement.waitForPing(1).timeout(const Duration(seconds: 5));
+      expect(replacement.isClosed, isFalse, reason: 'one new keepalive miss must not reconnect');
+      expect(l.status.isConnected, isTrue);
+
+      if (oldPingSucceeds) {
+        oldPing.complete();
+        // The next timer tick confirms the old ping's completion was processed.
+        await replacement.waitForPing(2).timeout(const Duration(seconds: 5));
+      }
+      final connectedAgain = nextStatus(l, (s) => s.isConnected, what: '两次保活失败后重连');
+      second.completeError(TimeoutException('second new ping'));
+      await connectedAgain;
+      expect(replacement.isClosed, isTrue, reason: 'two new keepalive misses must reconnect');
+      expect(server.transports, hasLength(3));
+    });
+  }
 
   test('a network kick skips the backoff wait', () async {
     final kicks = StreamController<void>();
