@@ -1,5 +1,6 @@
 package io.github.ccch1mneyyy.dsh_app.icons
 
+import io.github.ccch1mneyyy.dsh_app.BuildConfig
 import io.github.ccch1mneyyy.dsh_app.i18n.AppStrings
 import org.junit.Assert.*
 import org.junit.Test
@@ -58,13 +59,29 @@ class LauncherManifestTest {
 
     @Test fun thePhoneShowsTheAppAsDshGo() {
         val app = manifest().children("application").single()
-        assertEquals("DSH Go", app.getAttribute("android:label"))
-        // Notification titles say the same name.
-        assertEquals(app.getAttribute("android:label"), AppStrings.APP_NAME)
+        assertEquals("\${dshAppLabel}", app.getAttribute("android:label"))
+        // Notification titles retain the product name; Gradle labels preview installs separately.
+        assertEquals("DSH Go", AppStrings.APP_NAME)
         // Launcher entries, Recents and the share sheet all take the application's label.
         for (element in app.children("activity") + app.children("activity-alias")) {
             assertEquals(element.getAttribute("android:name"), "", element.getAttribute("android:label"))
         }
+    }
+
+    @Test fun staticShortcutsTargetThisVariantWithoutExportingTheEntry() {
+        // Inspect the generator's output, not the template or a second copy of its substitution.
+        val shortcuts = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+            .parse(File(System.getProperty("shortcutsXml"))).documentElement.children("shortcut")
+        assertEquals(listOf("new_chat", "voice_input"), shortcuts.map { it.getAttribute("android:shortcutId") })
+        for ((shortcut, action) in shortcuts.zip(listOf("NEW_CHAT", "VOICE_INPUT"))) {
+            val intent = shortcut.children("intent").single()
+            assertEquals(BuildConfig.APPLICATION_ID, intent.getAttribute("android:targetPackage"))
+            assertEquals("$ns.shortcuts.EntryActivity", intent.getAttribute("android:targetClass"))
+            assertEquals("$ns.action.$action", intent.getAttribute("android:action"))
+        }
+        val entry = manifest().children("application").single().children("activity")
+            .single { full(it.getAttribute("android:name")) == "$ns.shortcuts.EntryActivity" }
+        assertEquals("false", entry.getAttribute("android:exported"))
     }
 
     @Test fun everyAliasIconShipsAllLayersAndDensities() {

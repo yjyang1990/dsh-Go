@@ -8,6 +8,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:dsh_client/dsh_client.dart';
+import 'package:dsh_remote/dsh_remote.dart' show RemoteDshClient, RemoteInputPredictionApi;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -93,6 +94,7 @@ import 'composer_toast.dart';
 import 'dock/chat_dock.dart';
 import 'dock/dock_stack.dart';
 import 'empty_state.dart';
+import 'input_prediction.dart';
 import 'new_chat_options.dart';
 import 'media/generate_mode.dart';
 import 'media/generate_sheet.dart';
@@ -1572,6 +1574,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     final sessionId = ref.watch(currentSessionProvider);
     final connAsync = ref.watch(activeConnectionProvider);
     final conn = connAsync.value;
+    final predictionSession = conn?.client.remoteCarrier?.session;
+    final predictionApi = predictionSession == null || predictionSession.isClosed
+        ? null
+        : RemoteInputPredictionApi(predictionSession.rpc, capabilities: predictionSession.capabilities);
     final connected = conn != null;
     final local = ref.watch(activeHostProvider.select((h) => h.kind == HostKind.local));
     final starting = local && ref.watch(localRuntimeProvider.select((s) => s.status.phase == RuntimePhase.starting));
@@ -2173,6 +2179,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                                       ),
                                     ),
                                   ),
+                                InputPrediction(
+                                  scope: (ref.watch(activeHostProvider), conn?.client, 'harness', workspace, sessionId),
+                                  controller: _input,
+                                  voice: _voice,
+                                  enabled: sessionId != null &&
+                                      predictionApi?.supported == true &&
+                                      !readOnly &&
+                                      !running &&
+                                      (chat?.controlReady ?? false) &&
+                                      _creating == null &&
+                                      _syncWait == null &&
+                                      approval == null &&
+                                      question == null &&
+                                      generate == null,
+                                  read: () async => sessionId == null ? null : predictionApi?.read(sessionId),
+                                ),
                                 if (readOnly)
                                   const ReadOnlyBar()
                                 else
