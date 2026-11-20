@@ -262,6 +262,26 @@ void main() {
       expect(find.text('已暂停'), findsNothing);
     });
 
+    testWidgets('a blocked goal can be resumed from the goal sheet', (tester) async {
+      final goal = goalOf(revision: 2, phase: GoalPhase.blocked, blocked: '需要你确认数据库');
+      final backend = FakeGoalBackend(canRead: false)..current = goal;
+      await DockHarness(
+        state: _state(goal: goal, running: false),
+        backend: backend,
+      ).pump(tester);
+
+      await tester.tap(find.byType(GoalBar));
+      await tester.pumpAndSettle();
+      expect(find.text('需要你确认数据库'), findsOneWidget);
+      expect(find.text('暂停'), findsNothing);
+      await tester.tap(find.text('恢复'));
+      await tester.pumpAndSettle();
+
+      expect(backend.calls, ['resume s1 goal-1@2']);
+      expect(find.byType(GoalBar), findsOneWidget);
+      expect(find.text('受阻'), findsNothing);
+    });
+
     testWidgets('编辑: several lines kept; empty or unchanged cannot be saved', (tester) async {
       final goal = goalOf();
       final backend = FakeGoalBackend(canRead: false)..current = goal;

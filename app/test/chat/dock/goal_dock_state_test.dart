@@ -92,7 +92,7 @@ void main() {
       expect(s.shown!.canResume, isTrue);
     });
 
-    test('paused and blocked goals are not read; blocked offers neither', () async {
+    test('paused and blocked goals offer resume without reading activation', () async {
       final backend = FakeGoalBackend();
       final s = _Setup(
         goal: goalOf(phase: GoalPhase.paused),
@@ -106,7 +106,7 @@ void main() {
       await _settle();
       expect(s.shown!.phase, GoalPhase.blocked);
       expect(s.shown!.canPause, isFalse);
-      expect(s.shown!.canResume, isFalse);
+      expect(s.shown!.canResume, isTrue);
       expect(backend.calls, isEmpty);
     });
 

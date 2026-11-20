@@ -108,8 +108,8 @@ class DockGoal {
   /// activation still offers pause (it is valid on any active goal).
   bool get canPause => phase == GoalPhase.active && !disarmed;
 
-  /// Official rule: resume a paused goal or a disarmed active one.
-  bool get canResume => phase == GoalPhase.paused || disarmed;
+  /// Resume a paused or blocked goal, or rearm a disarmed active goal.
+  bool get canResume => phase == GoalPhase.paused || phase == GoalPhase.blocked || disarmed;
 
   @override
   bool operator ==(Object other) =>
