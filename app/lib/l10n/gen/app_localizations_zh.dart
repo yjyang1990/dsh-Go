@@ -18214,6 +18214,18 @@ class L10nZh extends L10n {
   String get shellRenameFailed => '没能重命名，稍后再试';
 
   @override
+  String get shellInputPrediction => '输入预测';
+
+  @override
+  String get shellInputPredictionGlobalOff => '主机已关闭输入预测';
+
+  @override
+  String get shellInputPredictionReadFailed => '读取设置失败，点击重试';
+
+  @override
+  String get shellInputPredictionSaveFailed => '输入预测设置未确认';
+
+  @override
   String shellChatStoppedArchived(String title) {
     return '已停止并归档「$title」';
   }

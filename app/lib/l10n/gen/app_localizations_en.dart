@@ -19221,6 +19221,18 @@ class L10nEn extends L10n {
   String get shellRenameFailed => 'Couldn’t rename. Try again later.';
 
   @override
+  String get shellInputPrediction => 'Input prediction';
+
+  @override
+  String get shellInputPredictionGlobalOff => 'Input prediction is off on the host';
+
+  @override
+  String get shellInputPredictionReadFailed => 'Couldn’t load the setting. Tap to retry.';
+
+  @override
+  String get shellInputPredictionSaveFailed => 'Couldn’t confirm the input prediction setting.';
+
+  @override
   String shellChatStoppedArchived(String title) {
     return 'Stopped and archived “$title”';
   }

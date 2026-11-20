@@ -10837,6 +10837,10 @@
   "shellMoveToOtherFolder": "移到其他文件夹",
   "shellArchiveStopsTurn": "进行中的一轮会停止",
   "shellRenameFailed": "没能重命名，稍后再试",
+  "shellInputPrediction": "输入预测",
+  "shellInputPredictionGlobalOff": "主机已关闭输入预测",
+  "shellInputPredictionReadFailed": "读取设置失败，点击重试",
+  "shellInputPredictionSaveFailed": "输入预测设置未确认",
   "shellChatStoppedArchived": "已停止并归档「{title}」",
   "@shellChatStoppedArchived": {
     "placeholders": {

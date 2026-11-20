@@ -19,6 +19,7 @@ import '../../state/bots_state.dart';
 import '../../state/connection_state.dart';
 import '../../state/engine_control.dart';
 import '../../state/hosts_state.dart';
+import '../../state/input_prediction_state.dart';
 import '../../state/drawer_view_state.dart';
 import '../../state/session_attention_state.dart';
 import '../../state/session_deletion_state.dart';
@@ -549,6 +550,11 @@ class _SessionList extends ConsumerWidget {
     final workspaces = ref.read(workspacesProvider);
     final pinned = workspaces.pinnedSessionIds.contains(s.sessionId);
     final inFolder = ref.read(drawerViewProvider).folderOf.containsKey(s.sessionId);
+    final predictionApi = ref.read(inputPredictionApiProvider);
+    final predictionTarget = predictionApi != null && predictionApi.settingSupported
+        ? (api: predictionApi, sessionId: s.sessionId)
+        : null;
+    if (predictionTarget != null) ref.read(inputPredictionSettingProvider(predictionTarget).notifier).refresh();
     final action = await showAppSheet<String>(
       context,
       isScrollControlled: true,
@@ -575,6 +581,7 @@ class _SessionList extends ConsumerWidget {
                       title: Text(context.l10n.commonRename),
                       onTap: () => Navigator.pop(sheet, 'rename'),
                     ),
+                    if (predictionTarget != null) _SessionPredictionTile(target: predictionTarget),
                     ListTile(
                       leading: const Icon(AppIcons.moveToFolder),
                       title: Text(inFolder ? context.l10n.shellMoveToOtherFolder : context.l10n.shellMoveToFolder),
@@ -658,6 +665,62 @@ class _SessionList extends ConsumerWidget {
       initial: initial,
       hint: context.l10n.shellChatTitle,
       maxLength: 80,
+    );
+  }
+}
+
+class _SessionPredictionTile extends ConsumerStatefulWidget {
+  const _SessionPredictionTile({required this.target});
+
+  final InputPredictionTarget target;
+
+  @override
+  ConsumerState<_SessionPredictionTile> createState() => _SessionPredictionTileState();
+}
+
+class _SessionPredictionTileState extends ConsumerState<_SessionPredictionTile> {
+  bool _saveFailed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!identical(ref.watch(inputPredictionApiProvider), widget.target.api)) return const SizedBox.shrink();
+    final provider = inputPredictionSettingProvider(widget.target);
+    final snapshot = ref.watch(provider);
+    final setting = snapshot.value;
+    final l10n = context.l10n;
+    if (snapshot.isLoading) {
+      return ListTile(
+        leading: const Icon(AppIcons.generating),
+        title: Text(l10n.shellInputPrediction),
+        trailing: const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+    if (snapshot.hasError) {
+      return ListTile(
+        leading: const Icon(AppIcons.generating),
+        title: Text(l10n.shellInputPrediction),
+        subtitle: Text(l10n.shellInputPredictionReadFailed),
+        onTap: () => ref.read(provider.notifier).refresh(),
+      );
+    }
+    if (setting == null || setting.forceEnabled) return const SizedBox.shrink();
+    return SwitchListTile(
+      secondary: const Icon(AppIcons.generating),
+      title: Text(l10n.shellInputPrediction),
+      subtitle: _saveFailed
+          ? Text(l10n.shellInputPredictionSaveFailed)
+          : setting.globalEnabled
+          ? null
+          : Text(l10n.shellInputPredictionGlobalOff),
+      value: setting.enabled,
+      onChanged: (enabled) async {
+        if (_saveFailed) setState(() => _saveFailed = false);
+        try {
+          await ref.read(provider.notifier).setEnabled(enabled);
+        } on Exception {
+          if (mounted) setState(() => _saveFailed = true);
+        }
+      },
     );
   }
 }

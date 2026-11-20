@@ -8,7 +8,6 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:dsh_client/dsh_client.dart';
-import 'package:dsh_remote/dsh_remote.dart' show RemoteDshClient, RemoteInputPredictionApi;
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -46,6 +45,7 @@ import '../../state/engine_control.dart';
 import '../../state/engine_settings_state.dart' show engineSettingsProvider;
 import '../../state/features_state.dart' show agentPresetsProvider, permissionStateProvider;
 import '../../state/hosts_state.dart' show HostKind, HostRef, activeHostProvider;
+import '../../state/input_prediction_state.dart';
 import '../../state/media_generation.dart';
 import '../../state/mention_state.dart';
 import '../../state/models_state.dart';
@@ -1605,10 +1605,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     final sessionId = ref.watch(currentSessionProvider);
     final connAsync = ref.watch(activeConnectionProvider);
     final conn = connAsync.value;
-    final predictionSession = conn?.client.remoteCarrier?.session;
-    final predictionApi = predictionSession == null || predictionSession.isClosed
-        ? null
-        : RemoteInputPredictionApi(predictionSession.rpc, capabilities: predictionSession.capabilities);
     final connected = conn != null;
     final local = ref.watch(activeHostProvider.select((h) => h.kind == HostKind.local));
     final starting = local && ref.watch(localRuntimeProvider.select((s) => s.status.phase == RuntimePhase.starting));
@@ -1767,6 +1763,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     final readOnly =
         sessionId != null &&
         ref.watch(subagentParentProvider(sessionId).select((p) => p?.address.mode == SubagentMode.oneShot));
+    final predictionApi = sessionId == null || readOnly ? null : ref.watch(inputPredictionApiProvider);
+    final predictionSetting = sessionId != null && predictionApi != null && predictionApi.settingSupported
+        ? ref.watch(inputPredictionSettingProvider((api: predictionApi, sessionId: sessionId)))
+        : null;
+    final predictionAllowed =
+        predictionSetting == null ||
+        (!predictionSetting.isLoading &&
+            (predictionSetting.hasError || predictionSetting.value?.effectiveEnabled == true));
     // A subagent conversation: 「‹ 上级对话」 takes the menu key's place, so
     // the 新对话 key would have nothing to mirror.
     final isChild = sessionId != null && ref.watch(subagentParentProvider(sessionId).select((p) => p != null));
@@ -2242,6 +2246,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                                   enabled:
                                       sessionId != null &&
                                       predictionApi?.supported == true &&
+                                      predictionAllowed &&
                                       !readOnly &&
                                       !running &&
                                       (chat?.controlReady ?? false) &&

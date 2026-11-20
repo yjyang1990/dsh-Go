@@ -33482,6 +33482,30 @@ abstract class L10n {
   /// **'没能重命名，稍后再试'**
   String get shellRenameFailed;
 
+  /// No description provided for @shellInputPrediction.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入预测'**
+  String get shellInputPrediction;
+
+  /// No description provided for @shellInputPredictionGlobalOff.
+  ///
+  /// In zh, this message translates to:
+  /// **'主机已关闭输入预测'**
+  String get shellInputPredictionGlobalOff;
+
+  /// No description provided for @shellInputPredictionReadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'读取设置失败，点击重试'**
+  String get shellInputPredictionReadFailed;
+
+  /// No description provided for @shellInputPredictionSaveFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入预测设置未确认'**
+  String get shellInputPredictionSaveFailed;
+
   /// No description provided for @shellChatStoppedArchived.
   ///
   /// In zh, this message translates to:
