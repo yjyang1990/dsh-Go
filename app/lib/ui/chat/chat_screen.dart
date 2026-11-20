@@ -50,6 +50,7 @@ import '../../state/media_generation.dart';
 import '../../state/mention_state.dart';
 import '../../state/models_state.dart';
 import '../../state/new_chat_modes.dart';
+import '../../state/session_attention_state.dart' show PendingKind, pendingInteractionsProvider;
 import '../../state/session_search.dart' show folderLabel;
 import '../../state/safe_mode_state.dart';
 import '../../state/session_modes.dart';
@@ -67,6 +68,7 @@ import '../common/fluid_bits.dart';
 import '../common/ui_trace.dart';
 import '../common/sheet_title_bar.dart';
 import '../common/smooth_size.dart';
+import '../common/conversation_status.dart';
 import '../common/status_dot.dart';
 import '../features/all_features_page.dart';
 import '../features/session_export_page.dart';
@@ -273,9 +275,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   /// Only this wait may resume a send or clear the composer's busy state.
   Object? _syncWait;
 
-  /// How the last turn ended, for the header's live region.
-  String? _spoken;
-
   /// 每个对话一份草稿:换对话时输入条换成那个对话的字和附件。
   late final DraftStore _draftStore;
 
@@ -354,7 +353,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     _dismissedSlashText = null;
     _saveDraft();
     _draftKey = key;
-    _spoken = null;
     _editing = false;
     setState(() => _showDraft(ref.read(draftStoreProvider).drafts[key]));
   }
@@ -1664,6 +1662,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                 title: s.title,
                 running: s.running,
                 stopping: s.stopping,
+                outcome: s.turns.lastOrNull?.endSeq == null
+                    ? null
+                    : TurnOutcomeKind.fromWire(s.turns.last.endReason?.kind),
                 streamLost: s.streamLost,
                 syncing: s.syncing,
                 resyncing: s.resyncing,
@@ -1711,17 +1712,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     if (sessionId != null) {
       // A finished turn spent money: re-read the balance (throttled).
       ref.listen(chatProvider(sessionId).select((s) => s.running), (previous, running) {
-        if (running) {
-          _spoken = null;
-        } else if (previous == true) {
-          final turns = ref.read(chatProvider(sessionId)).turns;
-          _spoken = switch (turns.lastOrNull?.endReason?.kind) {
-            'aborted' => l10n.commonStopped,
-            null || 'completed' || 'max-tokens' => l10n.chatTurnCompleted,
-            _ => l10n.chatTurnError,
-          };
-          ref.read(balanceProvider.notifier).refresh();
-        }
+        if (previous == true && !running) ref.read(balanceProvider.notifier).refresh();
       });
     }
 
@@ -1731,6 +1722,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     };
     final approval = chat?.approval;
     final question = chat?.question;
+    final pending = sessionId == null
+        ? null
+        : ref.watch(pendingInteractionsProvider.select((requests) => requests[sessionId]));
+    final hostLabel = conn?.label ?? l10n.commonThisPhone;
     final status = _status(
       connecting: connAsync.isLoading && conn == null,
       starting: starting,
@@ -1742,21 +1737,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       },
       streamLost: chat?.streamLost ?? false,
       syncing: chat?.syncing ?? false,
-      label: conn?.label ?? l10n.commonThisPhone,
+      label: hostLabel,
       connection: chat?.connection,
-      running: chat?.running ?? false,
-      stopping: chat?.stopping ?? false,
-      waiting: approval != null
-          ? l10n.commonWaitingApproval
-          : question != null
-          ? l10n.commonWaitingAnswer
-          : null,
-      // The live region reads out what is waiting, or how the turn ended.
+      conversation: switch ((chat?.stopping, approval, question, pending, chat?.running)) {
+        (true, _, _, _, _) => ConversationStatus.stopping,
+        (_, ApprovalRequest(), _, _, _) ||
+        (_, _, _, PendingKind.approval || PendingKind.plan, _) => ConversationStatus.waitingApproval,
+        (_, _, UserQuestionRequest(:final questions), _, _)
+            when questions.any((q) => q.intent?['kind'] == 'plan-review') =>
+          ConversationStatus.waitingApproval,
+        (_, _, UserQuestionRequest(), _, _) || (_, _, _, PendingKind.question, _) => ConversationStatus.waitingAnswer,
+        (_, _, _, _, true) => ConversationStatus.running,
+        _ => ConversationStatus.fromOutcome(chat?.outcome),
+      },
       spoken: approval != null
           ? approvalText(approval)
           : question != null
           ? questionText(question)
-          : _spoken,
+          : null,
     );
     final narrow = MediaQuery.sizeOf(context).width < WindowClass.mediumMin;
     // Where a new conversation starts (the drawer's workspace, else the one a
@@ -1772,6 +1770,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     // A subagent conversation: 「‹ 上级对话」 takes the menu key's place, so
     // the 新对话 key would have nothing to mirror.
     final isChild = sessionId != null && ref.watch(subagentParentProvider(sessionId).select((p) => p != null));
+    final folder = narrow && !isChild
+        ? folderLabel(
+            ref.watch(
+              sessionsProvider.select(
+                (s) => s.value?.where((session) => session.sessionId == sessionId).firstOrNull?.cwd,
+              ),
+            ),
+          )
+        : null;
+    final headerDetail = switch ((status.conversation, folder)) {
+      (null, _) => folder,
+      (_, final folder?) => '$hostLabel · $folder',
+      _ => hostLabel,
+    };
     // 生成模式: this conversation's, and what the host can do.
     final generate = ref.watch(generateModeProvider.select((m) => m.byKey[_draftKey]));
     final mediaReady = ref.watch(mediaPluginProvider) == MediaPluginState.ready;
@@ -1958,15 +1970,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                         scrolledUnder: sessionId == null ? null : _scrolledUnder,
                         title: title,
                         status: status,
-                        detail: !narrow || isChild
-                            ? null
-                            : folderLabel(
-                                ref.watch(
-                                  sessionsProvider.select(
-                                    (s) => s.value?.where((session) => session.sessionId == sessionId).firstOrNull?.cwd,
-                                  ),
-                                ),
-                              ),
+                        detail: headerDetail,
                         onOpenDrawer: widget.onOpenDrawer,
                         onNewChat: sessionId == null || isChild
                             ? null
@@ -2417,9 +2421,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     required bool syncing,
     required String label,
     required DshConnectionState? connection,
-    required bool running,
-    required bool stopping,
-    required String? waiting,
+    required ConversationStatus? conversation,
     String? spoken,
   }) {
     if (!connected) {
@@ -2440,14 +2442,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         break;
     }
     if (syncing) return HeaderStatus(StatusTone.busy, appL10n.stateChatSynchronizing);
-    if (stopping) return HeaderStatus(StatusTone.busy, appL10n.commonStopping);
-    if (waiting != null) {
-      return HeaderStatus(StatusTone.warn, waiting, spoken: spoken);
-    }
-    if (running) {
-      return HeaderStatus(StatusTone.busy, appL10n.chatGenerating, spoken: spoken);
-    }
-    return HeaderStatus(StatusTone.ok, label, spoken: spoken);
+    if (conversation == null) return HeaderStatus(StatusTone.ok, label);
+    return HeaderStatus(
+      conversation.tone,
+      conversation.label(appL10n),
+      conversation: conversation,
+      spoken: switch (conversation) {
+        ConversationStatus.waitingApproval || ConversationStatus.waitingAnswer => spoken,
+        _ => null,
+      },
+    );
   }
 }
 

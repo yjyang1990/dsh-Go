@@ -218,7 +218,7 @@ void main() {
     expect(jsonEncode(data.toJson()), isNot(contains('SECRET')));
   });
 
-  test('sessions keep title/id/time only and never advertise stale running state', () {
+  test('sessions keep display fields and never advertise stale running state', () {
     final source = SessionSummary(
       sessionId: 's',
       updatedAt: now,
@@ -231,6 +231,12 @@ void main() {
         'title': 'Title',
         'inbox': 'SECRET-INBOX',
         'permissions': 'SECRET-PERM',
+        'sessionListMetadata': {
+          'lastTurnOutcome': {
+            'turn': 5,
+            'reason': {'kind': 'error', 'error': 'SECRET-FAILURE'},
+          },
+        },
       }),
     );
     final data = CachedSessions(sessions: [source], bots: const [], workspaceVersion: 'v', scoped: true);
@@ -239,7 +245,18 @@ void main() {
     expect(row.agentAvailable, isFalse);
     expect(row.raw, isEmpty);
     expect(row.projections.values.keys, ['title']);
+    expect(row.lastTurnOutcome, isNull);
     expect(jsonEncode(data.toJson()), isNot(contains('SECRET')));
+
+    final settled = CachedSessions(
+      sessions: [source.copyWith(running: false)],
+      bots: const [],
+      workspaceVersion: 'v',
+      scoped: true,
+    );
+    expect(settled.sessions.single.lastTurnOutcome, (turn: 5, kind: TurnOutcomeKind.error));
+    expect(jsonEncode(settled.toJson()), contains('"outcome":[5,"error"]'));
+    expect(jsonEncode(settled.toJson()), isNot(contains('SECRET')));
   });
 
   test('cached projections are immutable detached copies', () {

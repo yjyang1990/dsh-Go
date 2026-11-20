@@ -658,6 +658,26 @@
         }
       }
     },
+    "session-list-turn-outcome.diff": {
+      "0.2.2-rc.1": {
+        "node_modules/@deepseek-ai/dsh-api-session-controller/lib/index.js": {
+          "after": "c5567354b29eb3a8afa651e1217b61c7231f5cbbb027867365dfb50623fe3770",
+          "before": "5e14c333b6e401448f17205b5afc4abfcd52b8ed706ff9253a43215a061c73cd"
+        },
+        "node_modules/@deepseek-ai/dsh-api-session-controller/lib/types/types.d.ts": {
+          "after": "6e0e2f538edfd89535c01f6d692b07fe097599ee75c86c9f370d353365c7b8c0",
+          "before": "e9f0491ddbaa4e945f987dae2da3ff3bc42d126916fb4df2a965e0f05d678c78"
+        },
+        "node_modules/@deepseek-ai/dsh-session-query/lib/index.js": {
+          "after": "65af7bc6a84bfdf48795ee8aa50ba5dc6eaaac49c7d5a4baba90ba5c55d13e9f",
+          "before": "e93cf89b4a677d828a16774f7dbc3b3ced87a896079420c3998628a6b4541a82"
+        },
+        "node_modules/@deepseek-ai/dsh-session-query/lib/types/index.d.ts": {
+          "after": "5b6150dafacc64cd8f0197c3c28076ba8e9d47071c0d4d286f7fe02a03bb8bbf",
+          "before": "96830d26ff85f04542c9b37dfd36a9ba63bdbae2cfa61e3a98fd9bedf8a9e578"
+        }
+      }
+    },
     "session-queue-steer-deletion.diff": {
       "0.2.2-rc.1": {
         "node_modules/@deepseek-ai/dsh-api-session-controller/lib/index.js": {
@@ -2515,7 +2535,8 @@
       "deepseek-refusal.diff",
       "deepseek-unnamed-stream-error.diff",
       "web-empty-reply-notice.diff",
-      "profile-root-installation-precedence.diff"
+      "profile-root-installation-precedence.diff",
+      "session-list-turn-outcome.diff"
     ],
     "ohos": [
       "cordis-effect-dispose-completion.diff",
@@ -2672,6 +2693,7 @@
       "deepseek-unnamed-stream-error.diff",
       "web-empty-reply-notice.diff",
       "profile-root-installation-precedence.diff",
+      "session-list-turn-outcome.diff",
       "ohos-attachment-publication.diff",
       "ohos-attachment-diagnostic.diff",
       "ohos-hap-native-libraries.diff",

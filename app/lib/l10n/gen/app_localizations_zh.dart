@@ -4976,6 +4976,26 @@ class L10nZh extends L10n {
   String get commonStopping => '正在停止';
 
   @override
+  String get conversationRunning => '进行中';
+
+  @override
+  String get conversationCompleted => '已完成';
+
+  @override
+  String get conversationError => '出错';
+
+  @override
+  String get conversationOutputLimit => '达到输出上限';
+
+  @override
+  String get conversationBlocked => '已受阻';
+
+  @override
+  String conversationLastKnown(String status) {
+    return '上次状态 $status';
+  }
+
+  @override
   String get commonWaitingApproval => '等你确认';
 
   @override

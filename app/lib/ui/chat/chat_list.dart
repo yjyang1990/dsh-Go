@@ -1234,7 +1234,7 @@ class _ChatListState extends ConsumerState<ChatList> with SingleTickerProviderSt
   // ---------------------------------------------------------------------------
   // 消息操作:分叉打开的是一个新对话,原对话不动。
 
-  Widget _reply(AssistantChatItem item, bool showActions, TurnTrace? footnote) {
+  Widget _reply(AssistantChatItem item, bool showActions, TurnTrace? footnote, bool stopped) {
     // A picture a media card shows is not drawn again in the reply.
     if (withoutShownImages(item.text, ref.read(sessionMediaPathsProvider(widget.sessionId))) case final text?) {
       item = replyWithText(item, text);
@@ -1247,6 +1247,7 @@ class _ChatListState extends ConsumerState<ChatList> with SingleTickerProviderSt
         : null;
     final message = AssistantMessage(
       item: item,
+      stopped: stopped,
       showActions: showActions,
       onBranch: branchable ? () => _branch(item) : null,
       branching: _forkingId == item.id,
@@ -1484,7 +1485,12 @@ class _ChatListState extends ConsumerState<ChatList> with SingleTickerProviderSt
         onQuote: widget.onQuote == null ? null : _quote,
       ),
       PendingRow(:final prompt) => _pendingBubble(prompt),
-      AssistantRow(:final item, :final showActions, :final footnote) => _reply(item, showActions, footnote),
+      AssistantRow(:final item, :final showActions, :final footnote, :final stopped) => _reply(
+        item,
+        showActions,
+        footnote,
+        stopped,
+      ),
       TurnFootnoteRow(:final trace) => Bleed(
         horizontal: 8,
         child: Align(alignment: Alignment.centerLeft, child: _footnote(trace)),

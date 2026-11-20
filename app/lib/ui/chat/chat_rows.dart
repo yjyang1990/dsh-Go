@@ -43,8 +43,9 @@ final class PendingRow extends ChatRow {
 }
 
 final class AssistantRow extends ChatRow {
-  const AssistantRow(this.item, {this.showActions = false, this.footnote});
+  const AssistantRow(this.item, {this.showActions = false, this.footnote, this.stopped = false});
   final AssistantChatItem item;
+  final bool stopped;
 
   /// 一轮的最后一条助手正文:下面挂复制键。
   final bool showActions;
@@ -378,7 +379,7 @@ List<ChatRow> deriveRows({
     final footnote = last ? done : null;
     if (index != null) {
       final row = rows[index] as AssistantRow;
-      rows[index] = AssistantRow(row.item, showActions: true, footnote: footnote);
+      rows[index] = AssistantRow(row.item, showActions: true, footnote: footnote, stopped: row.stopped);
     } else if (footnote != null && rows.isNotEmpty) {
       rows.insert(pieceEnd, TurnFootnoteRow(footnote));
       pieceEnd++;
@@ -461,7 +462,10 @@ List<ChatRow> deriveRows({
       case NoticeChatItem():
         flushTools();
         final previous = i > 0 ? items[i - 1] : null;
-        if (item.kind == 'aborted' && previous is AssistantChatItem && previous.interrupted) {
+        if ((item.kind, previous, rows.lastOrNull)
+            case ('aborted', AssistantChatItem(interrupted: true), final AssistantRow row)
+            when identical(row.item, previous)) {
+          rows[rows.length - 1] = AssistantRow(row.item, stopped: true);
           break;
         }
         pieceStart ??= rows.length;

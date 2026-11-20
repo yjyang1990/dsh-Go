@@ -13,6 +13,7 @@ import '../../../speech/read_aloud.dart';
 import '../../speech/speech_ui.dart';
 import '../../common/expand_reveal.dart';
 import '../../common/fluid_bits.dart';
+import '../../common/status_dot.dart';
 import '../../common/typing_indicator.dart';
 import '../../theme/app_icons.dart';
 import '../../theme/theme.dart';
@@ -51,6 +52,7 @@ class AssistantMessage extends StatefulWidget {
     super.key,
     required this.item,
     this.showActions = false,
+    this.stopped = false,
     this.onBranch,
     this.branching = false,
     this.onRegenerate,
@@ -60,6 +62,7 @@ class AssistantMessage extends StatefulWidget {
   });
 
   final AssistantChatItem item;
+  final bool stopped;
 
   /// 是否在正文下方显示复制等操作(只给一轮里最后一条助手正文)。
   final bool showActions;
@@ -201,7 +204,7 @@ class _AssistantMessageState extends State<AssistantMessage> {
           ],
           if (text.isNotEmpty)
             _textAfterThinking ? _FirstTextIn(child: _markdown(text, streaming)) : _markdown(text, streaming),
-          if (item.interrupted) const _InterruptedMark(),
+          if (item.interrupted) _InterruptedMark(stopped: widget.stopped),
           // 一轮结束时和输入条上的胶囊同一节奏展开:胶囊收回多少,这里长出
           // 多少,回答不会先被顶上去再落回来。打开对话时已结束的轮直接展开。
           ExpandReveal(
@@ -361,24 +364,26 @@ class _FirstTextIn extends StatelessWidget {
   );
 }
 
-/// 被取消 / 中断:正文末尾一行 danger 小字,不改正文颜色。
+/// 被取消 / 中断:在部分回复后标明原因。
 class _InterruptedMark extends StatelessWidget {
-  const _InterruptedMark();
+  const _InterruptedMark({required this.stopped});
+
+  final bool stopped;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final danger = DshColors.of(context).danger;
+    final color = stopped ? StatusDot.colorFor(context, StatusTone.idle) : DshColors.of(context).danger;
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(AppIcons.stopped, size: 16, color: danger),
+          Icon(AppIcons.stopped, size: 16, color: color),
           const SizedBox(width: 4),
           Text(
-            l10n.chatInterrupted,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: danger, height: 1.3),
+            stopped ? l10n.commonStopped : l10n.chatInterrupted,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: color, height: 1.3),
           ),
         ],
       ),

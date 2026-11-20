@@ -1,0 +1,116 @@
+--- a/node_modules/@deepseek-ai/dsh-api-session-controller/lib/index.js
++++ b/node_modules/@deepseek-ai/dsh-api-session-controller/lib/index.js
+@@ -11,7 +11,7 @@
+ import { mkdir } from "node:fs/promises";
+ import { installModelSelection } from "@deepseek-ai/dsh-agent";
+ import { brandString } from "@deepseek-ai/dsh-brand";
+-import { SessionQueryError } from "@deepseek-ai/dsh-session-query";
++import { SessionQueryError, isSyntheticTurnEnd } from "@deepseek-ai/dsh-session-query";
+ import { credentialRef } from "@deepseek-ai/dsh-credentials";
+ import { AttachmentError } from "@deepseek-ai/dsh-attachment";
+ import { buildForkSeed } from "@deepseek-ai/dsh-session/fork";
+@@ -2646,7 +2646,14 @@
+ const MESSAGE_TYPES = new Set(["user/message", "assistant/message"]);
+ const sessionListMetadataSchema = z$1.object({
+ 	blank: z$1.boolean(),
+-	lastPromptAt: z$1.number().nullable()
++	lastPromptAt: z$1.number().nullable(),
++	lastTurnOutcome: z$1.object({
++		turn: z$1.number().int(),
++		reason: z$1.object({
++			kind: z$1.string(),
++			reason: z$1.object({ kind: z$1.string() }).optional()
++		})
++	}).optional()
+ });
+ const imageLimitsSchema = z$1.object({
+ 	maxImageBytes: z$1.number().int().positive(),
+@@ -2665,7 +2672,20 @@
+ function applySessionListMetadata(state, event) {
+ 	const blank = state.blank && event.type !== "turn/start";
+ 	const lastPromptAt = event.type === "user/message" && event.data.source.kind === "user" ? event.time : state.lastPromptAt;
++	if (event.type === "turn/start") return { blank, lastPromptAt };
++	if (event.type === "turn/end" && !isSyntheticTurnEnd(event)) {
++		const { turn, reason } = event.data;
++		return {
++			blank,
++			lastPromptAt,
++			lastTurnOutcome: {
++				turn,
++				reason: reason.kind === "aborted" ? { kind: reason.kind, reason: { kind: reason.reason.kind } } : { kind: reason.kind }
++			}
++		};
++	}
+ 	return blank === state.blank && lastPromptAt === state.lastPromptAt ? state : {
++		...state,
+ 		blank,
+ 		lastPromptAt
+ 	};
+@@ -2718,7 +2738,7 @@
+ 				viewSchema: sessionListMetadataSchema,
+ 				view: (state) => state
+ 			},
+-			stateVersion: 1
++			stateVersion: 2
+ 		});
+ 		await this.ctx.sessionProjections.register({
+ 			key: "imageLimits",
+--- a/node_modules/@deepseek-ai/dsh-api-session-controller/lib/types/types.d.ts
++++ b/node_modules/@deepseek-ai/dsh-api-session-controller/lib/types/types.d.ts
+@@ -27,6 +27,11 @@
+     readonly blank: boolean;
+     /** Latest human-authored prompt time in the folded prefix. */
+     readonly lastPromptAt: number | null;
++    /** Durable outcome of the latest turn, with reason kinds only. */
++    readonly lastTurnOutcome?: {
++        readonly turn: number;
++        readonly reason: { readonly kind: string; readonly reason?: { readonly kind: string } };
++    };
+ }
+ /**
+  * Summary wire values a Session-list row carries. A `sequenced` block carries
+--- a/node_modules/@deepseek-ai/dsh-session-query/lib/index.js
++++ b/node_modules/@deepseek-ai/dsh-session-query/lib/index.js
+@@ -20,6 +20,11 @@
+ //#endregion
+ //#region lib/types/cold-read.js
+ /** One-shot cold session read through the handle-based persistence seam. */
++// Cold readers balance a crashed transcript without committing its closing event.
++const syntheticTurnEnds = new WeakSet();
++function isSyntheticTurnEnd(event) {
++	return syntheticTurnEnds.has(event);
++}
+ /**
+ * Read one complete stored session log without taking ownership or mutating
+ * storage: open a read handle, read the validated contiguous log, close the
+@@ -45,11 +50,13 @@
+ 	}
+ 	await handle.close();
+ 	const { events } = read;
++	const turnClosers = interruptedTurnClosers(events);
++	for (const event of turnClosers) syntheticTurnEnds.add(event);
+ 	return {
+ 		eventState: read.eventState,
+ 		header: handle.header,
+ 		inheritedEventCount: handle.inheritedEventCount,
+-		events: [...events, ...interruptedTurnClosers(events)]
++		events: [...events, ...turnClosers]
+ 	};
+ }
+ //#endregion
+@@ -1247,4 +1254,4 @@
+ 	}
+ };
+ //#endregion
+-export { SESSION_QUERY_DEFAULT_PERSISTED_INSPECT_CONCURRENCY, SESSION_QUERY_DEFAULT_PREPARED_SESSION_CACHE_SIZE, SESSION_QUERY_READ_WINDOW_MAX, SessionQueryEngine, SessionQueryEngine as default, SessionQueryError, SessionSearchCursor, assertSessionHeadersCompatible, buildSessionEventRecords, buildSessionEventSearchDocuments, compileSessionTextFilter, extractSessionEventText, filterSessionEventDocuments, filterSessionResults, materializeSessionEventResultFilters, materializeSessionResultFilters, readColdSessionLog };
++export { SESSION_QUERY_DEFAULT_PERSISTED_INSPECT_CONCURRENCY, SESSION_QUERY_DEFAULT_PREPARED_SESSION_CACHE_SIZE, SESSION_QUERY_READ_WINDOW_MAX, SessionQueryEngine, SessionQueryEngine as default, SessionQueryError, SessionSearchCursor, assertSessionHeadersCompatible, buildSessionEventRecords, buildSessionEventSearchDocuments, compileSessionTextFilter, extractSessionEventText, filterSessionEventDocuments, filterSessionResults, isSyntheticTurnEnd, materializeSessionEventResultFilters, materializeSessionResultFilters, readColdSessionLog };
+--- a/node_modules/@deepseek-ai/dsh-session-query/lib/types/index.d.ts
++++ b/node_modules/@deepseek-ai/dsh-session-query/lib/types/index.d.ts
+@@ -14,6 +14,7 @@
+ export type { Config, SessionQueryErrorCode } from './config.ts';
+ export { SESSION_QUERY_DEFAULT_PERSISTED_INSPECT_CONCURRENCY, SESSION_QUERY_DEFAULT_PREPARED_SESSION_CACHE_SIZE, SESSION_QUERY_READ_WINDOW_MAX, SessionQueryError, } from './config.ts';
+ export { readColdSessionLog } from './cold-read.ts';
++export declare function isSyntheticTurnEnd(event: object): boolean;
+ export type { ColdSessionLog } from './cold-read.ts';
+ export { extractSessionEventText } from './extraction.ts';
+ export { buildSessionEventRecords, buildSessionEventSearchDocuments } from './documents.ts';

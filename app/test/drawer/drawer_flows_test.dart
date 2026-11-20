@@ -34,12 +34,13 @@ Future<(DrawerHost, ProviderContainer)> _start(
   WidgetTester tester, {
   Map<String, Object> prefs = const {},
   Map<String, PendingKind> pending = const {},
+  String? idleOutcome,
 }) async {
   SharedPreferences.setMockInitialValues(prefs);
   final host = DrawerHost();
   final midnight = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
   host.seedSession('s1', '修复登录按钮', midnight.add(const Duration(seconds: 3)), running: true);
-  host.seedSession('s2', '深色模式', midnight.add(const Duration(seconds: 2)));
+  host.seedSession('s2', '深色模式', midnight.add(const Duration(seconds: 2)), outcome: idleOutcome);
   host.seedSession('s3', 'proot 入门', midnight.add(const Duration(seconds: 1)));
   host.pinned = ['s3'];
   usePhoneSurface(tester);
@@ -144,7 +145,7 @@ void main() {
 
   testWidgets('filters: 运行中 and 待确认 show only their matches, or say there are none', (tester) async {
     await _start(tester, pending: {'s3': PendingKind.approval});
-    expect(find.descendant(of: _tile('proot 入门'), matching: find.text('待确认')), findsOneWidget);
+    expect(find.descendant(of: _tile('proot 入门'), matching: find.text('等你确认')), findsOneWidget);
     await tester.tap(find.widgetWithText(CapsuleChoiceChip, '运行中'));
     await _settle(tester);
     expect(_tile('修复登录按钮'), findsOneWidget);
@@ -156,6 +157,13 @@ void main() {
     await tester.tap(find.widgetWithText(CapsuleChoiceChip, '未读'));
     await _settle(tester);
     expect(find.text('没有未读对话'), findsOneWidget);
+  });
+
+  testWidgets('rows show a known outcome and do not mark older idle sessions as completed', (tester) async {
+    await _start(tester, idleOutcome: 'completed');
+    expect(find.descendant(of: _tile('修复登录按钮'), matching: find.text('进行中')), findsOneWidget);
+    expect(find.descendant(of: _tile('深色模式'), matching: find.text('已完成')), findsOneWidget);
+    expect(tester.widget<SessionTile>(_tile('proot 入门')).status, isNull);
   });
 
   testWidgets('multi-select: delayed archive undo keeps folders, pin and the open one without Host writes', (

@@ -5288,6 +5288,26 @@ class L10nEn extends L10n {
   String get commonStopping => 'Stopping';
 
   @override
+  String get conversationRunning => 'In progress';
+
+  @override
+  String get conversationCompleted => 'Completed';
+
+  @override
+  String get conversationError => 'Error';
+
+  @override
+  String get conversationOutputLimit => 'Output limit reached';
+
+  @override
+  String get conversationBlocked => 'Blocked';
+
+  @override
+  String conversationLastKnown(String status) {
+    return 'Last known: $status';
+  }
+
+  @override
   String get commonWaitingApproval => 'Needs approval';
 
   @override

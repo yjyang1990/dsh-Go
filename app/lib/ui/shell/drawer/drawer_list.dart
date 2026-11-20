@@ -8,11 +8,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/l10n.dart';
+import '../../../state/chat_state.dart' show chatProvider;
 import '../../../state/drawer_view_state.dart';
 import '../../../state/session_attention_state.dart';
 import '../../../state/session_created_state.dart';
 import '../../../state/sessions_state.dart';
 import '../../../state/workspaces_state.dart';
+import '../../common/conversation_status.dart';
 import '../../common/empty_view.dart';
 import '../../theme/app_icons.dart';
 import '../../theme/motion.dart';
@@ -60,6 +62,7 @@ class DrawerConversationList extends ConsumerWidget {
     final selecting = !readOnly && selection != null;
     final filter = ref.watch(drawerFilterProvider);
     final current = ref.watch(currentSessionProvider);
+    final stopping = !readOnly && current != null && ref.watch(chatProvider(current).select((s) => s.stopping));
     final pending = ref.watch(pendingInteractionsProvider);
     final unread = ref.watch(unreadSessionIdsProvider);
     final pinned = ref.watch(workspacesProvider.select((s) => s.pinnedSessionIds)).toSet();
@@ -77,12 +80,19 @@ class DrawerConversationList extends ConsumerWidget {
 
     Widget tile(SessionSummary s, {bool inFolder = false}) {
       final id = s.sessionId;
+      final status = switch ((id == current && stopping, readOnly ? null : pending[id], s.running)) {
+        (true, _, _) => ConversationStatus.stopping,
+        (_, PendingKind.approval || PendingKind.plan, _) => ConversationStatus.waitingApproval,
+        (_, PendingKind.question, _) => ConversationStatus.waitingAnswer,
+        (_, _, true) when !readOnly => ConversationStatus.running,
+        _ => ConversationStatus.fromOutcome(s.lastTurnOutcome?.kind),
+      };
       return SessionTile(
         key: ValueKey('session-$id'),
         title: sessionTitle(s),
-        running: s.running,
+        status: status,
         current: id == current,
-        pending: readOnly ? null : pending[id],
+        lastKnown: readOnly,
         unread: !readOnly && unread.contains(id),
         pinned: inFolder && pinned.contains(id),
         indent: inFolder ? SessionTile.folderIndent : 0,

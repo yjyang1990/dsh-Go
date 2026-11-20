@@ -4,6 +4,7 @@
 // Regenerate with
 // `flutter test --update-goldens test/chat/run_info_golden_test.dart`.
 
+import 'package:dsh_app/ui/chat/chat_header.dart';
 import 'package:dsh_app/ui/chat/chat_screen.dart';
 import 'package:dsh_app/ui/chat/diff_page.dart';
 import 'package:dsh_app/ui/chat/dock/dock_stack.dart' show DockFoldController;
@@ -75,8 +76,7 @@ void main() {
     testWidgets('running: header timer and the activity strip', (tester) async {
       final harness = ChatHarness(session: 's1', states: {'s1': runInfoState()});
       await _pumpChat(tester, harness, Brightness.light);
-      expect(find.text('生成中'), findsOneWidget);
-      expect(find.textContaining('生成中 · 0:'), findsNothing);
+      expect(tester.widget<ChatHeader>(find.byType(ChatHeader)).status.label, '进行中');
       expect(find.byType(ActivityStrip), findsOneWidget);
       expect(find.text('跑'), findsOneWidget);
       // The strip counts the turn, like the header.
@@ -90,14 +90,14 @@ void main() {
       runClock = () => runInfoTestDispatched.add(const Duration(milliseconds: 15300));
       await tester.pump(const Duration(seconds: 1));
       expect(find.text('0:22'), findsOneWidget);
-      expect(find.text('生成中'), findsOneWidget);
-      expect(find.textContaining('生成中 · 0:'), findsNothing);
+      expect(tester.widget<ChatHeader>(find.byType(ChatHeader)).status.label, '进行中');
 
       // Tapping the strip opens the running turn's trajectory.
       await tester.tap(find.byType(ActivityStrip));
       await pumpFrames(tester, 8);
-      expect(find.byType(TrajectorySheet), findsOneWidget);
-      expect(find.text('进行中'), findsOneWidget);
+      final sheet = find.byType(TrajectorySheet);
+      expect(sheet, findsOneWidget);
+      expect(find.descendant(of: sheet, matching: find.text('进行中')), findsOneWidget);
     });
 
     testWidgets('footnote → trajectory → step detail → back', (tester) async {

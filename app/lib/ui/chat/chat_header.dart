@@ -14,6 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/l10n.dart';
 import '../../state/header_schedule_state.dart';
 import '../agents/header_agents.dart';
+import '../common/conversation_status.dart';
 import '../common/fluid_bits.dart';
 import '../common/smooth_size.dart';
 import '../common/status_dot.dart';
@@ -27,12 +28,12 @@ import 'model_sheet.dart' show ModelChip;
 /// 顶栏状态行的内容:状态点 + 一句人话。颜色从不单独表达状态。
 /// 计时只在活动条里,这一行不走秒。
 class HeaderStatus {
-  const HeaderStatus(this.tone, this.label, {this.spoken});
+  const HeaderStatus(this.tone, this.label, {this.spoken, this.conversation});
   final StatusTone tone;
   final String label;
+  final ConversationStatus? conversation;
 
-  /// What a screen reader announces instead of [label] (the approval itself,
-  /// how the turn ended).
+  /// The detailed request a screen reader announces in place of [label].
   final String? spoken;
 }
 
@@ -65,7 +66,7 @@ class ChatHeader extends ConsumerStatefulWidget {
   final String title;
   final HeaderStatus status;
 
-  /// What follows the status under the title (a phone: the workspace). Shortens first.
+  /// The host or workspace label under the title. Shortens first.
   final String? detail;
 
   /// 右侧件(模型胶囊 [ModelChip])。需要传 `grouped: true` 与顶栏共享一次
@@ -225,13 +226,16 @@ class _ChatHeaderState extends ConsumerState<ChatHeader> {
                                       status: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          StatusDot(tone: widget.status.tone, size: _dot),
+                                          widget.status.conversation?.glyph(size: _statusGlyphSize) ??
+                                              StatusDot(tone: widget.status.tone, size: _dot),
                                           const SizedBox(width: _dotGap),
                                           Flexible(
                                             child: _StatusLabel(
                                               status: widget.status,
                                               style: statusStyle?.copyWith(
-                                                color: widget.status.tone == StatusTone.warn
+                                                color: widget.status.conversation != null
+                                                    ? colors.onSurfaceVariant
+                                                    : widget.status.tone == StatusTone.warn
                                                     ? dsh.warning
                                                     : dsh.textTertiary,
                                               ),
@@ -333,6 +337,7 @@ class _ChatHeaderState extends ConsumerState<ChatHeader> {
   /// right, where the clock goes).
   static const _pillPadding = HeaderScheduleCap.padding;
   static const _dot = 6.0;
+  static const _statusGlyphSize = 11.0;
   static const _dotGap = 5.0;
 
   /// The least the title pill keeps against the model chip: the title's first
@@ -345,7 +350,8 @@ class _ChatHeaderState extends ConsumerState<ChatHeader> {
       ..textDirection = Directionality.of(context)
       ..textScaler = scaler
       ..layout();
-    final statusLine = _dot + _dotGap + _statusPainter.width;
+    final glyphSize = widget.status.conversation == null ? _dot : _statusGlyphSize;
+    final statusLine = glyphSize + _dotGap + _statusPainter.width;
     final title = scaler.scale(15);
     return _pillPadding * 2 + math.max(title * 5, math.min(statusLine, title * 8));
   }

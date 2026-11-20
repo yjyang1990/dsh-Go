@@ -287,9 +287,21 @@ final class CachedSessions extends ReadListData {
           sessionId: budget.text(row.sessionId, 256),
           updatedAt: row.updatedAt,
           running: false,
-          blank: false,
+          blank: row.blank,
           agentAvailable: false,
-          projections: SessionProjections(-1, Map.unmodifiable({'title': budget.optional(row.title)})),
+          projections: SessionProjections(
+            -1,
+            Map.unmodifiable({
+              'title': budget.optional(row.title),
+              if (row.lastTurnOutcome case final outcome?)
+                'sessionListMetadata': Map.unmodifiable({
+                  'lastTurnOutcome': Map.unmodifiable({
+                    'turn': outcome.turn,
+                    'reason': Map.unmodifiable({'kind': outcome.kind.wireKind}),
+                  }),
+                }),
+            }),
+          ),
         ),
     ]);
   }
@@ -299,11 +311,14 @@ final class CachedSessions extends ReadListData {
     'workspaceVersion': workspaceVersion,
     'scoped': scoped,
     'workspaceLabel': workspaceLabel,
-    'sessions': [
-      for (final s in sessions) {'id': s.sessionId, 'title': s.title, 'updated': s.updatedAt.millisecondsSinceEpoch},
-    ],
-    'bots': [
-      for (final s in bots) {'id': s.sessionId, 'title': s.title, 'updated': s.updatedAt.millisecondsSinceEpoch},
-    ],
+    'sessions': sessions.map(_rowJson).toList(),
+    'bots': bots.map(_rowJson).toList(),
+  };
+
+  static Map<String, Object?> _rowJson(SessionSummary row) => {
+    'id': row.sessionId,
+    'title': row.title,
+    'updated': row.updatedAt.millisecondsSinceEpoch,
+    if (row.lastTurnOutcome case final outcome?) 'outcome': [outcome.turn, outcome.kind.wireKind],
   };
 }

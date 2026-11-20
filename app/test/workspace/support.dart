@@ -82,7 +82,7 @@ class FakeWorkspaceHost extends DshCarrier {
   }
 
   /// Adds a conversation row as `session/list` reports it.
-  void seedSession(String id, String title, DateTime updatedAt, {bool running = false}) {
+  void seedSession(String id, String title, DateTime updatedAt, {bool running = false, String? outcome}) {
     sessions.add({
       'sessionId': id,
       'updatedAt': updatedAt.millisecondsSinceEpoch,
@@ -93,7 +93,16 @@ class FakeWorkspaceHost extends DshCarrier {
       'projections': {
         'kind': 'hints',
         'asOfSeq': 1,
-        'values': {'title': title},
+        'values': {
+          'title': title,
+          if (outcome != null)
+            'sessionListMetadata': {
+              'lastTurnOutcome': {
+                'turn': 1,
+                'reason': {'kind': outcome},
+              },
+            },
+        },
       },
     });
   }

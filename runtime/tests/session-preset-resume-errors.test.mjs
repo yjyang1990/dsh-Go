@@ -13,7 +13,8 @@ import { once } from 'node:events';
 if (!process.env.DSH_PREFIX) throw new Error('Set DSH_PREFIX to a private fully patched locked prefix');
 const prefix = resolve(process.env.DSH_PREFIX);
 let root, child, exited, watchdog, model, base, cookie;
-let hostText = '', modelRequests = 0, requestId = 0;
+let hostText = '', modelRequests = 0, requestId = 0, expectLiveTurn = false;
+const liveTurnResponse = Promise.withResolvers();
 const clean = text => text.replace(/token=[\w-]+/g, 'token=[REDACTED]');
 const load = name => import(pathToFileURL(join(prefix, 'node_modules/@deepseek-ai', name, 'lib/index.js')));
 
@@ -41,8 +42,14 @@ before(async () => {
       finally { await writer.close(); }
     }
   } finally { await ctx.fiber.dispose(); }
-  model = createServer((_req, res) => {
-    modelRequests++; res.writeHead(500); res.end('Unexpected synthetic model request');
+  model = createServer((req, res) => {
+    modelRequests++;
+    req.resume();
+    if (!expectLiveTurn || req.url !== '/v1/messages') {
+      res.writeHead(500); res.end('Unexpected synthetic model request'); return;
+    }
+    expectLiveTurn = false;
+    liveTurnResponse.resolve(res);
   });
   model.listen(0, '127.0.0.1'); await once(model, 'listening');
   const invalidPlugin = join(root, 'invalid-preset.mjs');
@@ -95,7 +102,7 @@ after(async () => {
   }
   if (model) { model.closeAllConnections(); await new Promise(done => model.close(done)); }
   if (root) await rm(root, { recursive: true, force: true });
-  assert.equal(modelRequests, 0, 'No actual LLM request is needed to resolve a preset');
+  assert.equal(modelRequests, 1, 'Only the explicit live-turn prompt calls the loopback model');
 });
 
 async function rpc(method, args) {
@@ -130,6 +137,9 @@ test('rejected resumes keep both histories listed and readable without changing 
     const list = await rpc('session/list', { _request: {} }); assert.equal(list.ok, true);
     const row = list.value.items.find(item => item.sessionId === `synthetic-${id}`);
     assert(row); assert.equal(row.blank, false); assert.equal(row.agentAvailable, false);
+    assert.deepEqual(row.projections.values.sessionListMetadata.lastTurnOutcome, {
+      turn: 1, reason: { kind: 'completed' },
+    });
     const projected = await rpc('session/projections', { request: { sessionId: `synthetic-${id}` } });
     assert.equal(projected.ok, true);
     assert.equal(projected.value.values.agentPreset, id === 'missing' ? 'synthetic-removed' : 'synthetic-invalid');
@@ -139,6 +149,48 @@ test('a valid cold session still resumes, while a missing session stays not-foun
   assert.equal((await rename('synthetic-valid')).ok, true);
   const absent = await rename('synthetic-absent');
   assert.equal(absent.ok, false); assert.equal(absent.error.code, 'session/not-found');
+});
+test('a live next turn clears the prior outcome until its terminal event', { timeout: 15000 }, async () => {
+  const sessionId = 'synthetic-valid';
+  async function row() {
+    const list = await rpc('session/list', { _request: {} });
+    assert.equal(list.ok, true);
+    return list.value.items.find(item => item.sessionId === sessionId);
+  }
+  assert.equal(modelRequests, 0, 'Resolving presets did not call the model');
+  assert.deepEqual((await row()).projections.values.sessionListMetadata.lastTurnOutcome, {
+    turn: 1, reason: { kind: 'completed' },
+  });
+  expectLiveTurn = true;
+  const receipt = await rpc('session/prompt', { request: {
+    sessionId, requestId: 'synthetic-next-turn', mode: 'queue',
+    content: [{ type: 'text', text: 'Synthetic next turn' }],
+  } });
+  assert.equal(receipt.value?.accepted, true, JSON.stringify(receipt));
+  const response = await liveTurnResponse.promise;
+  try {
+    const running = await row();
+    assert.equal(running.running, true);
+    assert(!Object.hasOwn(running.projections.values.sessionListMetadata, 'lastTurnOutcome'));
+  } finally {
+    const frames = [
+      { type: 'message_start', message: { id: 'synthetic-live', type: 'message', role: 'assistant',
+        model: 'deepseek-flash', content: [], usage: { input_tokens: 1, output_tokens: 0 } } },
+      { type: 'content_block_start', index: 0, content_block: { type: 'text', text: 'Finished.' } },
+      { type: 'content_block_stop', index: 0 },
+      { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 1 } },
+      { type: 'message_stop' },
+    ];
+    response.writeHead(200, { 'content-type': 'text/event-stream' });
+    response.end(frames.map(frame => `event: ${frame.type}\ndata: ${JSON.stringify(frame)}\n\n`).join(''));
+  }
+  const wait = await rpc('session/wait', { request: { sessionId, timeoutMs: 5000 } });
+  assert.equal(wait.value?.reason, 'idle', JSON.stringify(wait));
+  const idle = await row();
+  assert.equal(idle.running, false);
+  assert.deepEqual(idle.projections.values.sessionListMetadata.lastTurnOutcome, {
+    turn: 2, reason: { kind: 'completed' },
+  });
 });
 for (const [mode, code] of [
   ['generic', 'gateway/internal'], ['unrelated', 'gateway/internal'], ['foreign', 'agent-preset/not-found'],

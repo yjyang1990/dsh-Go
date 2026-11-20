@@ -3,26 +3,24 @@
 import 'package:flutter/material.dart';
 
 import '../../../l10n/l10n.dart';
-import '../../../state/session_attention_state.dart';
-import '../../common/status_dot.dart';
+import '../../common/conversation_status.dart';
 import '../../theme/app_icons.dart';
 import '../../theme/theme.dart';
 import '../sessions_drawer.dart' show sessionSelectionColor;
 
 /// One conversation row: 44 high, the highlight on the 10 line, the title on
-/// the 20 line (plus [indent] inside a folder). At the end, one marker at
-/// most: what it waits for (待确认 / 待回答), a breathing dot while it works,
-/// or a quiet dot when it moved on since it was last seen. In multi-select a
-/// check slides in before the title.
+/// the 20 line (plus [indent] inside a folder). A trailing status shows the
+/// latest turn, with a separate unread dot. In multi-select a check slides
+/// in before the title.
 class SessionTile extends StatelessWidget {
   const SessionTile({
     super.key,
     required this.title,
-    required this.running,
+    required this.status,
     required this.current,
     required this.onTap,
     required this.onLongPress,
-    this.pending,
+    this.lastKnown = false,
     this.unread = false,
     this.pinned = false,
     this.indent = 0,
@@ -31,13 +29,13 @@ class SessionTile extends StatelessWidget {
   });
 
   final String title;
-  final bool running;
+  final ConversationStatus? status;
 
   /// The open conversation (soft fill; ignored while selecting).
   final bool current;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
-  final PendingKind? pending;
+  final bool lastKnown;
   final bool unread;
 
   /// Shown as a small pin (inside folders; elsewhere 置顶 says it).
@@ -68,21 +66,12 @@ class SessionTile extends StatelessWidget {
     final colors = DshColors.of(context);
     final shape = Squircle.border(AppShape.md);
     final highlighted = selecting ? selected : current;
-    final Widget? marker = switch ((pending, running, unread)) {
-      (final PendingKind kind, _, _) => Text(
-        kind.label,
-        key: const ValueKey('pending'),
-        style: theme.textTheme.labelMedium?.copyWith(color: colors.warning, fontWeight: FontWeight.w500),
-      ),
-      (_, true, _) => const StatusDot(key: ValueKey('running'), tone: StatusTone.busy, size: dot),
-      (_, _, true) => _UnreadDot(key: const ValueKey('unread'), color: scheme.onSurfaceVariant),
-      _ => null,
-    };
+    final statusLabel = status?.label(l10n);
+    final displayStatus = lastKnown && statusLabel != null ? l10n.conversationLastKnown(statusLabel) : statusLabel;
     final label = [
       title,
-      ?pending?.label,
-      if (pending == null && running) l10n.shellCurrentlyRunning,
-      if (pending == null && !running && unread) l10n.shellUnread,
+      ?displayStatus,
+      if (unread) l10n.shellUnread,
       if (pinned) l10n.shellPinned,
     ].join(l10n.shellSemanticsSeparator);
     return Semantics(
@@ -117,35 +106,55 @@ class SessionTile extends StatelessWidget {
                 child: child,
               );
             },
-            child: Row(
-              children: [
-                _CheckSlot(selecting: selecting, selected: selected),
-                Expanded(
-                  child: Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      fontSize: 15,
-                      height: 1.4,
-                      color: scheme.onSurface,
-                      fontWeight: current && !selecting ? FontWeight.w600 : FontWeight.w400,
+            child: LayoutBuilder(
+              builder: (context, constraints) => Row(
+                children: [
+                  _CheckSlot(selecting: selecting, selected: selected),
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        fontSize: 15,
+                        height: 1.4,
+                        color: scheme.onSurface,
+                        fontWeight: current && !selecting ? FontWeight.w600 : FontWeight.w400,
+                      ),
                     ),
                   ),
-                ),
-                if (pinned) ...[
-                  const SizedBox(width: 8),
-                  Icon(AppIcons.pinActive, size: 14, color: colors.textTertiary),
+                  if (pinned) ...[
+                    const SizedBox(width: 8),
+                    Icon(AppIcons.pinActive, size: 14, color: colors.textTertiary),
+                  ],
+                  if (unread) ...[
+                    const SizedBox(width: 8),
+                    _UnreadDot(key: const ValueKey('unread'), color: scheme.onSurfaceVariant),
+                  ],
+                  if (status case final status?)
+                    ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.58),
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            status.glyph(size: 12, animated: false),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                displayStatus!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                 ],
-                AnimatedSwitcher(
-                  duration: AppMotion.of(context, AppMotion.quick),
-                  layoutBuilder: (current, previous) =>
-                      Stack(alignment: Alignment.centerRight, children: [...previous, ?current]),
-                  child: marker == null
-                      ? const SizedBox.shrink(key: ValueKey('none'))
-                      : Padding(key: marker.key, padding: const EdgeInsets.only(left: 10), child: marker),
-                ),
-              ],
+              ),
             ),
           ),
         ),

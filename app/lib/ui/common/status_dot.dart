@@ -30,10 +30,11 @@ enum StatusTone {
 /// 颜色**不是唯一信号**:旁边总要配文字("运行中"/"已停止"),
 /// 色弱用户和读屏都靠文字。
 class StatusDot extends StatefulWidget {
-  const StatusDot({super.key, required this.tone, this.size = 8});
+  const StatusDot({super.key, required this.tone, this.size = 8, this.animated = true});
 
   final StatusTone tone;
   final double size;
+  final bool animated;
 
   static Color colorFor(BuildContext context, StatusTone tone) {
     final colors = DshColors.of(context);
@@ -73,7 +74,7 @@ class _StatusDotState extends State<StatusDot> with SingleTickerProviderStateMix
   }
 
   void _sync() {
-    if (widget.tone == StatusTone.busy && !AppMotion.reduced(context)) {
+    if (widget.animated && widget.tone == StatusTone.busy && !AppMotion.reduced(context)) {
       if (!_pulse.isAnimating) _pulse.repeat(reverse: true);
     } else {
       _pulse

@@ -576,6 +576,14 @@ class SessionProjections {
 
   bool? get blank => asBool(asMap(values['sessionListMetadata'])?['blank']);
 
+  ({int turn, TurnOutcomeKind kind})? get lastTurnOutcome {
+    final metadata = asMap(values['sessionListMetadata']);
+    final outcome = asMap(metadata?['lastTurnOutcome']);
+    final turn = asInt(outcome?['turn']);
+    final kind = TurnOutcomeKind.fromWire(asString(asMap(outcome?['reason'])?['kind']));
+    return turn == null || turn < 0 || kind == null ? null : (turn: turn, kind: kind);
+  }
+
   /// Messages waiting in the agent inbox (queued prompts), as raw messages.
   List<Message> get queuedMessages => [
     ...asListOrEmpty(asMap(values['inbox'])?['next-turn']).map(Message.fromJson),
@@ -657,6 +665,7 @@ class SessionSummary {
   final Map<String, Object?> raw;
 
   String? get title => projections.title;
+  ({int turn, TurnOutcomeKind kind})? get lastTurnOutcome => running || blank ? null : projections.lastTurnOutcome;
   bool get isSubagent => origin == 'subagent';
 
   SessionSummary copyWith({
@@ -1467,6 +1476,21 @@ final class TurnStartedEvent extends SessionLogEvent {
   const TurnStartedEvent(int seq, DateTime time, Map<String, Object?> data, {required this.turn})
     : super(seq, time, 'turn/start', data);
   final int turn;
+}
+
+/// Terminal turn outcomes presented to the person using the client.
+enum TurnOutcomeKind {
+  completed('completed'),
+  stopped('aborted'),
+  error('error'),
+  outputLimit('max-tokens'),
+  blocked('blocked'),
+  interrupted('interrupted');
+
+  const TurnOutcomeKind(this.wireKind);
+  final String wireKind;
+
+  static TurnOutcomeKind? fromWire(String? kind) => values.where((value) => value.wireKind == kind).firstOrNull;
 }
 
 /// Why a turn ended (`TurnEndReason`).

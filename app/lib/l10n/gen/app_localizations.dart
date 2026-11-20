@@ -9182,6 +9182,42 @@ abstract class L10n {
   /// **'正在停止'**
   String get commonStopping;
 
+  /// No description provided for @conversationRunning.
+  ///
+  /// In zh, this message translates to:
+  /// **'进行中'**
+  String get conversationRunning;
+
+  /// No description provided for @conversationCompleted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已完成'**
+  String get conversationCompleted;
+
+  /// No description provided for @conversationError.
+  ///
+  /// In zh, this message translates to:
+  /// **'出错'**
+  String get conversationError;
+
+  /// No description provided for @conversationOutputLimit.
+  ///
+  /// In zh, this message translates to:
+  /// **'达到输出上限'**
+  String get conversationOutputLimit;
+
+  /// No description provided for @conversationBlocked.
+  ///
+  /// In zh, this message translates to:
+  /// **'已受阻'**
+  String get conversationBlocked;
+
+  /// No description provided for @conversationLastKnown.
+  ///
+  /// In zh, this message translates to:
+  /// **'上次状态 {status}'**
+  String conversationLastKnown(String status);
+
   /// No description provided for @commonWaitingApproval.
   ///
   /// In zh, this message translates to:

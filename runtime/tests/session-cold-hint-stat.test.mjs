@@ -15,7 +15,23 @@ try{
  const [{Context},{Session},jsonl,{boot,loadOverlayPatches}]=await Promise.all(['cordis','dsh-session','dsh-session-persistence-jsonl','dsh-app-boot'].map(load));
  writer=new Context();await jsonl.apply(writer,{root:join(root,'sessions'),compression:'zstd'});
  const source=[];
- for(let i=0;i<3;i++){const cwd=join(root,`project-${i}`);await fs.mkdir(cwd);const id=`import-${i}`,s=Session.create(id,undefined,{...Session.create(id).header,cwd});const h=await writer.sessionPersistence.create(s.header);s.append('turn/start',{turn:1});s.append('turn/end',{turn:1,reason:{kind:'completed'}});await h.append(s.snapshotEvents());await h.close();source.push(s)}
+ const failure={kind:'error',error:{message:'Private synthetic failure',code:'UNKNOWN'}};
+ const cancelled={kind:'aborted',reason:{kind:'hook',reason:'Private synthetic hook'}};
+ const turns=[[failure,{kind:'completed'}],[{kind:'completed'},undefined],[failure],[cancelled]];
+ const expected=[{turn:2,reason:{kind:'completed'}},undefined,{turn:1,reason:{kind:'error'}},{turn:1,reason:{kind:'aborted',reason:{kind:'hook'}}}];
+ for(const [i,reasons] of turns.entries()){
+  const cwd=join(root,'project-'+i),id='import-'+i;
+  await fs.mkdir(cwd);
+  const s=Session.create(id,undefined,{...Session.create(id).header,cwd});
+  for(const [index,reason] of reasons.entries()){
+   const turn=index+1;
+   s.append('turn/start',{turn});
+   if(reason)s.append('turn/end',{turn,reason});
+  }
+  const h=await writer.sessionPersistence.create(s.header);
+  try{await h.append(s.snapshotEvents());}finally{await h.close();}
+  source.push(s);
+ }
  await writer.fiber.dispose();writer=undefined;
  const {provideCmdline}=await load('dsh-cmdline');
  const main=join(root,'main.json');await fs.writeFile(main,'[]');
@@ -28,7 +44,15 @@ try{
  async function listed(){
   calls.length=0;const result=await ctx.sessionController.list({});
   assert.deepEqual(result.items.map(x=>x.sessionId).sort(),source.map(x=>x.id).sort());
-  for(const row of result.items){assert.equal(row.running,false);assert.equal(row.agentAvailable,false);assert.equal(row.formatStatus,'current');assert.equal(typeof row.projections.values.sessionListMetadata.blank,'boolean')}
+  for(const [i,s] of source.entries()){
+   const row=result.items.find(x=>x.sessionId===s.id),metadata=row.projections.values.sessionListMetadata;
+   assert.equal(row.running,false);
+   assert.equal(row.agentAvailable,false);
+   assert.equal(row.formatStatus,'current');
+   assert.equal(typeof metadata.blank,'boolean');
+   assert.deepEqual(metadata.lastTurnOutcome,expected[i]);
+   assert.equal(Object.hasOwn(metadata,'lastTurnOutcome'),expected[i]!==undefined);
+  }
   return result;
  }
  await t.test('imported current logs without checkpoints use one query stat per session',async()=>{
@@ -53,5 +77,27 @@ try{
   assert.equal(result.items.find(x=>x.sessionId===source[0].id).projections.values.title,'Updated imported title');
  });
 
+ await t.test('version 1 checkpoints replay durable outcomes from the stored log',async()=>{
+  const table=ctx.sessionProjectionCache.requireTable();
+  for(const s of source){
+   const checkpoint=structuredClone(table.get(s.id)),metadata=checkpoint.rows.sessionListMetadata;
+   assert.equal(metadata.ver,2);
+   metadata.ver=1;
+   delete metadata.val.lastTurnOutcome;
+   await table.put(s.id,checkpoint);
+   assert(!Object.hasOwn(ctx.sessionProjectionCache.cachedSnapshot(s.header).values,'sessionListMetadata'));
+  }
+  await listed();
+  assert.equal(calls.length,source.length);
+ });
+ await t.test('an interrupted end is exposed once it is written to the log',async()=>{
+  const s=source[1],handle=await persistence.open(s.id,'write');
+  try{
+   s.append('turn/end',{turn:2,reason:{kind:'interrupted'}});
+   await handle.append(s.snapshotEvents().slice(-1));
+  }finally{await handle.close();}
+  expected[1]={turn:2,reason:{kind:'interrupted'}};
+  await listed();
+ });
 }finally{await ctx?.fiber.dispose();await writer?.fiber.dispose();await fs.rm(root,{recursive:true,force:true});if(priorHome===undefined)delete process.env.DSH_HOME;else process.env.DSH_HOME=priorHome;if(priorTelemetry===undefined)delete process.env.DSH_TELEMETRY_DISABLED;else process.env.DSH_TELEMETRY_DISABLED=priorTelemetry;}
 });

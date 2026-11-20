@@ -16,6 +16,7 @@ import 'package:dsh_app/ui/chat/composer.dart';
 import 'package:dsh_app/ui/chat/empty_actions.dart';
 import 'package:dsh_app/ui/chat/empty_state.dart';
 import 'package:dsh_app/ui/chat/widgets/activity_strip.dart';
+import 'package:dsh_app/ui/chat/widgets/assistant_message.dart';
 import 'package:dsh_app/ui/chat/widgets/attachments.dart';
 import 'package:dsh_app/ui/chat/dock/dock_stack.dart' show DockStackMetrics;
 import 'package:dsh_app/ui/chat/widgets/auto_approve_pill.dart';
@@ -585,7 +586,7 @@ void main() {
       expect(find.text('自动允许中'), findsOneWidget);
       // Nothing is waiting on the person any more.
       expect(find.descendant(of: find.byType(ChatHeader), matching: find.text('等你确认')), findsNothing);
-      expect(find.text('生成中'), findsOneWidget);
+      expect(find.descendant(of: find.byType(ChatHeader), matching: find.text('进行中')), findsOneWidget);
     });
 
     testWidgets('sandbox refusal reads as a neutral authorisation step', (tester) async {
@@ -594,6 +595,66 @@ void main() {
       expect(find.text('需要授权后才能执行'), findsOneWidget);
       expect(find.byIcon(AppIcons.lock), findsOneWidget);
       expect(find.textContaining('no sandbox backend'), findsNothing);
+    });
+
+    testWidgets('the header reflects each turn outcome and a new run takes precedence', (tester) async {
+      final active = streamingState();
+      final harness = ChatHarness(session: 's2', states: {'s2': active});
+      await pumpScreen(tester, harness);
+      Finder status(String label) => find.descendant(of: find.byType(ChatHeader), matching: find.text(label));
+      final controller = harness.controllers['s2']!;
+      final time = DateTime.utc(2026);
+      TurnTrace ended(int turn, String kind) => TurnTrace(
+        turn: turn,
+        startSeq: turn * 3,
+        start: time,
+        endSeq: turn * 3 + 2,
+        end: time,
+        endReason: TurnEndReason(kind),
+        spans: const [],
+      );
+      expect(status('进行中'), findsOneWidget);
+      controller.emit(active.copyWith(stopping: true));
+      await pumpFrames(tester, 6);
+      expect(status('正在停止'), findsOneWidget);
+      const results = {
+        'aborted': '已停止',
+        'error': '出错',
+        'max-tokens': '达到输出上限',
+        'blocked': '已受阻',
+        'interrupted': '已中断',
+        'completed': '已完成',
+      };
+      final turns = <TurnTrace>[];
+      for (final MapEntry(key: kind, value: label) in results.entries) {
+        final turn = ended(turns.length + 1, kind);
+        turns.add(turn);
+        controller.emit(
+          ChatState(
+            loading: false,
+            title: active.title,
+            turns: List.of(turns),
+            items: kind == 'aborted'
+                ? [
+                    user(turn.startSeq, '开始测试'),
+                    assistant(turn.startSeq + 1, '已生成的部分回复', interrupted: true),
+                    NoticeChatItem(seq: turn.endSeq!, kind: 'aborted', text: ''),
+                  ]
+                : const [],
+          ),
+        );
+        await pumpFrames(tester, 6);
+        expect(status(label), findsOneWidget);
+        if (kind == 'aborted') {
+          final reply = find.byType(AssistantMessage);
+          expect(find.descendant(of: reply, matching: find.text('已停止')), findsOneWidget);
+          expect(find.text('已生成的部分回复', findRichText: true), findsWidgets);
+        }
+      }
+      controller.emit(ChatState(loading: false, running: true, title: active.title, turns: List.of(turns)));
+      await pumpFrames(tester, 6);
+      expect(status('进行中'), findsOneWidget);
+      expect(status('已完成'), findsNothing);
     });
 
     testWidgets('stop button cancels while running with an empty input', (tester) async {
