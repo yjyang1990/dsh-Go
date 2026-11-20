@@ -28,6 +28,7 @@ import 'lorebook_library.dart';
 import 'persona.dart';
 import 'preset_library.dart';
 import 'regex_library.dart';
+import 'script_library.dart';
 import 'scripts.dart';
 import 'state.dart';
 import 'tools.dart';
@@ -437,6 +438,37 @@ final class TavernChatImportResult {
   final List<String> chatIds;
   final Map<String, String> chatsByFile;
   final List<String> notices;
+}
+
+/// One conversation in a DeepSeek export, as a list of them shows it.
+final class TavernDeepSeekSession {
+  const TavernDeepSeekSession({
+    required this.id,
+    required this.title,
+    required this.messageCount,
+    this.updatedAt,
+    this.imported,
+  });
+
+  /// Its id in the export.
+  final String id;
+
+  /// As DeepSeek titled it; empty when it had none.
+  final String title;
+  final int messageCount;
+  final DateTime? updatedAt;
+
+  /// Where it lives when it was taken in before.
+  final TavernDeepSeekImported? imported;
+}
+
+/// A DeepSeek conversation taken in: the character made for it and its chat.
+final class TavernDeepSeekImported {
+  const TavernDeepSeekImported({required this.sessionId, required this.characterId, required this.chatId});
+
+  final String sessionId;
+  final String characterId;
+  final String chatId;
 }
 
 /// Where the model calls go. The key is read through [apiKey] each call, so
@@ -875,6 +907,16 @@ abstract interface class Tavern {
   /// generation; only the state already committed to storage is included.
   Future<List<TavernChatFile>> exportChat(String chatId, {String? fileName});
 
+  /// The conversations in DeepSeek's「导出所有历史对话」ZIP at [zipPath], the
+  /// longest first. Throws [TavernImportError] when the file is not one.
+  Future<List<TavernDeepSeekSession>> inspectDeepSeekExport(String zipPath);
+
+  /// Takes the named conversations in: each becomes a character of its own
+  /// with one chat holding every branch, the one last on screen selected, so
+  /// the next message continues it. No greeting is added and no model is
+  /// called. One taken in before is returned as it is, not copied again.
+  Future<List<TavernDeepSeekImported>> importDeepSeekSessions(String zipPath, List<String> sessionIds);
+
   Future<void> deleteChat(String chatId);
 
   /// The current path, oldest first: the last [limit] messages, or the
@@ -1117,6 +1159,37 @@ abstract interface class Tavern {
   /// Independently stored legacy inline settings remain a fallback; deletion
   /// of a generated legacy record does not erase that separate configuration.
   Future<void> deletePreset(String presetId);
+
+  // Managed helper scripts -------------------------------------------------
+
+  /// Ordered global tree, including disabled scripts/folders. Raw values are
+  /// detached and include current owner data/buttons, not stale import copies.
+  Future<List<TavernScriptLibraryEntry>> listGlobalScripts();
+  Stream<List<TavernScriptLibraryEntry>> watchGlobalScripts();
+
+  /// Saves a bare helper script/folder object or a complete tree array.
+  /// Preserves enabled flags and unknown fields; never executes JavaScript.
+  /// Missing/conflicting ids become new stable ids; existing owners survive.
+  Future<List<TavernScriptLibraryEntry>> importGlobalScripts(String text);
+  Future<TavernScriptLibraryEntry> setGlobalScriptEnabled(String id, bool enabled);
+
+  /// Exact permutation of one folder's children, or of roots when null.
+  Future<void> setGlobalScriptOrder(List<String> ids, {String? folderId});
+
+  /// Removes this item/subtree and its leaf scripts' global data/button rows.
+  Future<void> deleteGlobalScript(String id);
+
+  /// Complete current JSON: one object with id, otherwise a tree array.
+  Future<String> exportGlobalScripts({String? id});
+
+  /// Global + actual current preset (including RAM/legacy inline) + card.
+  /// A group without characterId does not implicitly choose a group member.
+  /// Returned owners must be passed intact to scripts.openContext.
+  Future<TavernChatScripts> chatScripts(String chatId, {String? characterId});
+
+  /// Initial value and catalog changes. Ordinary message commits do not
+  /// reload scripts; runtime data/buttons still use the context cache bridge.
+  Stream<TavernChatScripts> watchChatScripts(String chatId, {String? characterId});
 
   // Managed global regex scripts --------------------------------------------
 

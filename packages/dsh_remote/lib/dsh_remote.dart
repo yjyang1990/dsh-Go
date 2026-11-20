@@ -35,7 +35,9 @@ export 'src/account/remote_account.dart'
 export 'src/account/secret_store.dart';
 export 'src/carrier/tunnel_carrier.dart';
 export 'src/channel/rpc_client.dart';
+export 'src/dsh_web.dart';
 export 'src/input_prediction.dart';
+export 'src/session_transfer.dart';
 export 'src/channel/secure_channel.dart';
 export 'src/crypto/noise_ik.dart'
     show

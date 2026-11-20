@@ -560,7 +560,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
 
   /// The open session, or a new one (create → select → apply the model picked
   /// on the new-chat screen). Null when it could not be created.
-  Future<String?> _ensureSession({required bool Function() isCurrent}) async {
+  /// [onCreated]: the session this call made, once it is selected, even when its
+  /// picks then fail to apply and null comes back.
+  Future<String?> _ensureSession({required bool Function() isCurrent, void Function(String id)? onCreated}) async {
     if (!isCurrent()) return null;
     final current = ref.read(currentSessionProvider);
     if (current != null) {
@@ -619,6 +621,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       if (!ownsCreation() || _draftKey != sessionId) return null;
       ref.read(currentSessionProvider.notifier).select(sessionId);
       if (!ownsCreation() || _draftKey != sessionId || ref.read(currentSessionProvider) != sessionId) return null;
+      onCreated?.call(sessionId);
       ref.read(composerQuoteProvider.notifier).move('new', sessionId);
       ref.read(generateModeProvider.notifier).move('new', sessionId);
       if (!ownsCreation() || _draftKey != sessionId) return null;
@@ -791,7 +794,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       // A generation request, counted on top of its turn.
       if (ok && generate != null && mounted) ref.read(usageStatsProvider.notifier).count(UsageCount.gen);
     }
-    if (!ok && _sameConnection(client, generation)) _giveBack(sessionId, typed, drafts, quote: quote);
+    if (!ok && _sameHost(client)) _giveBack(sessionId, typed, drafts, quote: quote);
   }
 
   // A failed send belongs to the Host that accepted it. The controller may
@@ -801,6 +804,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       mounted &&
       identical(ref.read(activeConnectionProvider).value?.client, client) &&
       identical(client.mux.generation, generation);
+
+  /// A send that did not go out (`send` is false only then) comes back on the Host that had
+  /// it, over a reconnect too (#1416); never into a replacement Host.
+  bool _sameHost(DshClient client) => mounted && identical(ref.read(activeConnectionProvider).value?.client, client);
 
   /// 没发出去:把字、附件和引用还给那个对话(用户还没开始打新的才还)。
   void _giveBack(String sessionId, String text, List<DraftAttachment> attachments, {String? quote}) {
@@ -830,9 +837,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   Future<void> _resend(String sessionId, String text, List<DraftAttachment> images) async {
     final client = ref.read(activeConnectionProvider).value?.client;
     if (client == null) return;
-    final generation = client.mux.generation;
     final ok = await ref.read(chatProvider(sessionId).notifier).send(text, attachments: images);
-    if (ok || !_sameConnection(client, generation)) return;
+    if (ok || !_sameHost(client)) return;
     final (:quote, :body) = splitQuote(text);
     _giveBack(sessionId, quote == null ? text : body, images, quote: quote);
   }
@@ -1473,13 +1479,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     showUsageSheet(context, sessionId: sessionId, model: model);
   }
 
+  /// The header's 语音通话 key: a call with the conversation on screen.
+  void _callFromHeader() {
+    HapticFeedback.selectionClick();
+    final scope = _draftScope;
+    unawaited(_startCall(() => mounted && identical(_draftScope, scope)));
+  }
+
   /// 「语音通话」 with this conversation (a new chat gets its conversation
   /// with the first thing said); [ownsDraft]: still the conversation it was asked from.
   Future<void> _startCall(bool Function() ownsDraft) async {
+    final host = ref.read(activeHostProvider);
     // Dictation gives the microphone back first (what it heard so far goes, as on a draft switch).
     await _voice.cancel();
-    if (!mounted || !ownsDraft()) return;
-    final host = ref.read(activeHostProvider);
+    if (!mounted || !ownsDraft() || ref.read(activeHostProvider) != host) return;
     final sessionId = ref.read(currentSessionProvider);
     final listed = sessionId == null ? null : ref.read(chatProvider(sessionId)).title;
     final title = listed != null && listed.trim().isNotEmpty ? chatTitleShown(listed.trim()) : appL10n.commonNewChat;
@@ -1493,7 +1506,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
           // Another host now: its conversation of the same id is not this call's.
           if (!mounted || ref.read(activeHostProvider) != host) return null;
           final id = pinned;
-          if (id == null) return pinned = await _ensureSession(isCurrent: () => mounted);
+          if (id == null) {
+            // Begun on the new-chat screen: another conversation opened since is not this call's.
+            if (ref.read(currentSessionProvider) != null) return null;
+            String? created;
+            final made = await _ensureSession(isCurrent: () => mounted, onCreated: (id) => created = id);
+            // Made but its picks failed to apply: still this call's, the next line retries them.
+            pinned = made ?? created;
+            return made;
+          }
           // Picks it still owes (a failed apply on the new-chat screen) are settled before it is spoken to.
           final owed = ref.read(owedSetupsProvider.notifier).of(host, id);
           if (owed != null && !await _applyOwedSetup(host, id, owed, () => mounted)) return null;
@@ -1953,6 +1974,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                                 HapticFeedback.selectionClick();
                                 ref.read(currentSessionProvider.notifier).select(null);
                               },
+                        onCall: isChild ? null : _callFromHeader,
                         // The title pill opens the whole session's details (on a
                         // wide window it folds and unfolds the panel beside us).
                         onTitleTap: sessionId == null

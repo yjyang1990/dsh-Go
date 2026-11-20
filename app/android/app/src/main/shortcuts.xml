@@ -2,7 +2,7 @@
 <!-- Long-press on the launcher icon: 新对话 and 语音输入 (static), then up to three recent
      conversations (dynamic, shortcuts/ShortcutsPlugin.kt). All go through the non-exported
      shortcuts/EntryActivity; launchers start shortcuts as this app, so it needs no export.
-     Gradle generates targetPackage as a literal applicationId (including the preview suffix):
+     Gradle generates targetPackage as a literal applicationId (including preview and side-build suffixes):
      Android's ShortcutParser resolves intent attributes with system resources, not ours. -->
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
     <shortcut

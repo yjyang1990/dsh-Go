@@ -117,6 +117,14 @@ class DeferredTavern implements Tavern {
       (await _ready).exportChat(chatId, fileName: fileName);
 
   @override
+  Future<List<TavernDeepSeekSession>> inspectDeepSeekExport(String zipPath) async =>
+      (await _ready).inspectDeepSeekExport(zipPath);
+
+  @override
+  Future<List<TavernDeepSeekImported>> importDeepSeekSessions(String zipPath, List<String> sessionIds) async =>
+      (await _ready).importDeepSeekSessions(zipPath, sessionIds);
+
+  @override
   Future<void> deleteChat(String chatId) async => (await _ready).deleteChat(chatId);
 
   @override
@@ -719,6 +727,40 @@ class DeferredTavern implements Tavern {
   Future<void> deletePreset(String presetId) async => (await _ready).deletePreset(presetId);
 
   @override
+  Future<List<TavernScriptLibraryEntry>> listGlobalScripts() async => (await _ready).listGlobalScripts();
+
+  @override
+  Stream<List<TavernScriptLibraryEntry>> watchGlobalScripts() => _stream((t) => t.watchGlobalScripts());
+
+  @override
+  Future<List<TavernScriptLibraryEntry>> importGlobalScripts(String text) async =>
+      (await _ready).importGlobalScripts(text);
+
+  @override
+  Future<TavernScriptLibraryEntry> setGlobalScriptEnabled(String id, bool enabled) async =>
+      (await _ready).setGlobalScriptEnabled(id, enabled);
+
+  @override
+  Future<void> setGlobalScriptOrder(List<String> ids, {String? folderId}) async {
+    final order = List.of(ids);
+    return (await _ready).setGlobalScriptOrder(order, folderId: folderId);
+  }
+
+  @override
+  Future<void> deleteGlobalScript(String id) async => (await _ready).deleteGlobalScript(id);
+
+  @override
+  Future<String> exportGlobalScripts({String? id}) async => (await _ready).exportGlobalScripts(id: id);
+
+  @override
+  Future<TavernChatScripts> chatScripts(String chatId, {String? characterId}) async =>
+      (await _ready).chatScripts(chatId, characterId: characterId);
+
+  @override
+  Stream<TavernChatScripts> watchChatScripts(String chatId, {String? characterId}) =>
+      _stream((t) => t.watchChatScripts(chatId, characterId: characterId));
+
+  @override
   Future<List<TavernRegexScript>> listRegexScripts() async => (await _ready).listRegexScripts();
 
   @override
@@ -1076,6 +1118,93 @@ class _DeferredScripts implements TavernScriptBridge {
     }
     return _call((b) => b.replaceCharacterData(contextId, characterId, held, expectedVersion: expectedVersion));
   }
+
+  @override
+  Future<TavernMvuInitialization> setMvuEnabled(String contextId, bool enabled) =>
+      _call((b) => b.setMvuEnabled(contextId, enabled));
+
+  @override
+  Future<TavernMvuParseResult> parseMvuMessage(String contextId, String message, TavernJsonObject previousData) =>
+      _call((b) => b.parseMvuMessage(contextId, message, previousData));
+
+  @override
+  Future<TavernScriptCharacterAvatarSnapshot> readCharacterAvatar(String contextId, String characterId) =>
+      _call((b) => b.readCharacterAvatar(contextId, characterId));
+
+  @override
+  Future<TavernScriptCharacterAvatarSnapshot> replaceCharacterAvatar(
+    String contextId,
+    String characterId,
+    Uint8List bytes, {
+    required String expectedVersion,
+  }) => _call((b) => b.replaceCharacterAvatar(contextId, characterId, bytes, expectedVersion: expectedVersion));
+
+  @override
+  Future<TavernScriptWorldInfoSettingsSnapshot> updateWorldInfoSettings(
+    String contextId,
+    TavernJsonObject patch, {
+    String? expectedVersion,
+  }) => _call((b) => b.updateWorldInfoSettings(contextId, patch, expectedVersion: expectedVersion));
+
+  @override
+  Future<TavernScriptButtonsSnapshot> replaceScriptButtons(
+    String contextId,
+    List<TavernScriptButton> buttons, {
+    String? expectedVersion,
+  }) => _call((b) => b.replaceScriptButtons(contextId, buttons, expectedVersion: expectedVersion));
+
+  @override
+  Future<TavernScriptBookDirectorySnapshot> getBookDirectory(String contextId) =>
+      _call((b) => b.getBookDirectory(contextId));
+
+  @override
+  Future<TavernScriptBookRef> resolveBook(String contextId, String nameOrHandle) =>
+      _call((b) => b.resolveBook(contextId, nameOrHandle));
+
+  @override
+  Future<TavernScriptBookSnapshot> createBook(String contextId, String name, TavernJsonObject raw) =>
+      _call((b) => b.createBook(contextId, name, raw));
+
+  @override
+  Future<void> deleteBook(String contextId, TavernScriptBookRef ref, {required String expectedVersion}) =>
+      _call((b) => b.deleteBook(contextId, ref, expectedVersion: expectedVersion));
+
+  @override
+  Future<TavernScriptBookBindingsSnapshot> readBookBindings(String contextId, TavernScriptBookBindingsTarget target) =>
+      _call((b) => b.readBookBindings(contextId, target));
+
+  @override
+  Future<TavernScriptBookBindingsSnapshot> updateBookBindings(
+    String contextId,
+    TavernScriptBookBindingsEdit edit, {
+    required String expectedVersion,
+  }) => _call((b) => b.updateBookBindings(contextId, edit, expectedVersion: expectedVersion));
+
+  @override
+  Future<TavernScriptPresetSnapshot> readPreset(String contextId, TavernScriptPresetRef ref) =>
+      _call((b) => b.readPreset(contextId, ref));
+
+  @override
+  Future<TavernScriptPresetSnapshot> replacePreset(
+    String contextId,
+    TavernScriptPresetRef ref,
+    TavernJsonObject raw, {
+    required String expectedVersion,
+  }) => _call((b) => b.replacePreset(contextId, ref, raw, expectedVersion: expectedVersion));
+
+  @override
+  Future<TavernScriptRegexWriteSnapshot> readTavernRegexesForWrite(
+    String contextId,
+    TavernScriptRegexWriteTarget target,
+  ) => _call((b) => b.readTavernRegexesForWrite(contextId, target));
+
+  @override
+  Future<TavernScriptRegexWriteSnapshot> replaceTavernRegexes(
+    String contextId,
+    TavernScriptRegexWriteTarget target,
+    List<TavernScriptRegexWriteItem> items, {
+    required String expectedVersion,
+  }) => _call((b) => b.replaceTavernRegexes(contextId, target, items, expectedVersion: expectedVersion));
 
   @override
   Future<List<TavernScriptBookBinding>> getContextBooks(String contextId) => _call((b) => b.getContextBooks(contextId));

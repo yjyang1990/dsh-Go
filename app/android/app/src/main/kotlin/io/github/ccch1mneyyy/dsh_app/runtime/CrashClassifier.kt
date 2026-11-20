@@ -51,6 +51,8 @@ data class RunFailure(
     val diagnostics: String?,
     /** Seconds between the ready transition and exit; null when ready was never reported. */
     val upSeconds: Long?,
+    /** The guest shell couldn't resolve its working directory or execute DSH under PRoot. */
+    val prootCompatibilityFailure: Boolean = false,
 ) {
     fun toMap(): Map<String, Any?> = mapOf(
         "kind" to kind.wire,
@@ -63,6 +65,7 @@ data class RunFailure(
         "recent" to recent,
         "diagnostics" to diagnostics,
         "upSeconds" to upSeconds,
+        "prootCompatibilityFailure" to prootCompatibilityFailure,
     )
 }
 
@@ -94,6 +97,8 @@ object CrashClassifier {
     private val PROOT_EXEC_FAILED = Regex(
         "^proot error: execve\\(\"/usr/bin/env\"\\): (?:Permission denied|Too many symbolic links encountered)$",
     )
+    // The fixed guest env command could not execute its shell before DSH started.
+    private const val ENV_SHELL_EXEC_FAILED = "/usr/bin/env: '/bin/sh': No such file or directory"
     // This exact early assertion comes from the pinned PRoot, not an Android kill.
     private const val PROOT_ASSERT_FAILED =
         "./tracee/event.c:704: int handle_tracee_event(Tracee *, int): assertion \"IS_IN_SYSENTER(tracee)\" failed"
@@ -131,6 +136,11 @@ object CrashClassifier {
 
     fun isFatal(line: String): Boolean = FATAL.any { it.containsMatchIn(line) }
 
+    fun isProotCompatibilityFailure(failure: RunFailure, tail: List<String>): Boolean =
+        failure.kind == FailureKind.LAUNCH_FAILED && failure.exitCode == 126 &&
+            "sh: 0: getcwd() failed: Function not implemented" in tail &&
+            "/bin/sh: 1: exec: /usr/local/bin/dsh: Bad address" in tail
+
     fun redact(line: String): String = TOKEN.replace(line) { "${it.groupValues[1]}=•••" }
 
     /**
@@ -151,7 +161,8 @@ object CrashClassifier {
         val early = exitCode != 0 && (readyAt == null || now - readyAt <= EARLY_WINDOW_MS)
         val fatal = tail.firstOrNull(::isFatal) ?: tail.firstOrNull { HEAP_OOM.matches(it) }?.takeIf { early }
         val launch = if (readyAt == null && exitCode != 0) tail.firstOrNull {
-            EXEC_FAILED.matches(it) || (!directEngine && (PROOT_EXEC_FAILED.matches(it) || it == PROOT_ASSERT_FAILED)) ||
+            EXEC_FAILED.matches(it) || (!directEngine && (PROOT_EXEC_FAILED.matches(it) || it == PROOT_ASSERT_FAILED ||
+                (exitCode == 127 && it == ENV_SHELL_EXEC_FAILED))) ||
                 (directEngine && DIRECT_FAILED.any { pattern -> pattern.matches(it) })
         } ?: (if (directEngine && exitCode == SIGSYS_EXIT) SECCOMP_KILLED else null) else null
         val kind = when {

@@ -8,6 +8,7 @@ import 'package:dsh_app/update/installer.dart';
 import 'package:dsh_app/update/release.dart';
 import 'package:dsh_app/update/update_config.dart';
 import 'package:dsh_app/update/update_http.dart';
+import 'package:dsh_app/update/version.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -215,6 +216,18 @@ void main() {
       expect(c.read(appUpdateProvider).isSkipped, isFalse);
     });
 
+    test('a release skipped from one source stays skipped from the other', () {
+      AppUpdateState offer(String latest, String skipped) => AppUpdateState(
+        current: AppVersion.tryParse('1.0.0')!,
+        latest: ReleaseInfo(version: AppVersion.tryParse(latest)!, tag: 'v1.2.0', apks: const {}),
+        skippedVersion: skipped,
+      );
+      // The manifest's 1.2.0+N and the API's tag v1.2.0 are one release.
+      expect(offer('1.2.0', '1.2.0+11170000').isSkipped, isTrue);
+      expect(offer('1.2.0+11170000', '1.2.0').isSkipped, isTrue);
+      expect(offer('1.2.0+11170001', '1.2.0+11170000').isSkipped, isFalse);
+    });
+
     test('same version as installed → up to date', () async {
       installer.app = const InstalledApp(versionName: '1.2.0', versionCode: 7, abi: 'arm64');
       http.routes[_api] = (_, _) => textResponse(fixture('github_release.json'));
@@ -356,6 +369,27 @@ void main() {
       await controller.check();
       await controller.startDownload();
       expect(c.read(appUpdateProvider).problem, UpdateProblem.noSpace);
+      expect(http.urls.where((u) => u.endsWith('.apk')), isEmpty);
+    });
+
+    test('an APK already here needs room only for its install copy', () async {
+      http.routes[_manifest] = (_, _) => textResponse(jsonEncode(_release()));
+      http.routes[_apkUrl] = fileRoute(_apk);
+      final c = container();
+      final controller = await ready(c);
+      await controller.check();
+      await controller.startDownload();
+      expect(c.read(appUpdateProvider).task, UpdateTaskPhase.ready);
+      // Room for one more copy, not two: the cached APK is checked and reused.
+      installer.app = InstalledApp(
+        versionName: '1.0.0',
+        versionCode: 1,
+        abi: 'arm64',
+        freeBytes: _apk.length + 64 * 1024 * 1024,
+      );
+      http.requests.clear();
+      await controller.startDownload();
+      expect(c.read(appUpdateProvider).task, UpdateTaskPhase.ready);
       expect(http.urls.where((u) => u.endsWith('.apk')), isEmpty);
     });
 

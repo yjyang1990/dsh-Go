@@ -47,6 +47,10 @@ val hasWholeReleaseKey = listOf("storeFile", "keyAlias").all { !keyProps.getProp
 
 check(!previewBuild || hasWholeReleaseKey) { "Preview builds require a complete dedicated signing configuration" }
 
+// Side-by-side test builds use a separate package and the normal signing config.
+val sideBuild = providers.environmentVariable("DSH_SIDE_BUILD").orNull == "1"
+check(!(previewBuild && sideBuild)) { "Choose either the preview build or --side" }
+
 // Per-ABI runtime bundles produced by runtime/build-runtime.sh.
 val runtimeOut = rootProject.file("../../runtime/out")
 // libtawcroot.so for the opt-in tawcroot launch method (runtime/tawcroot/build.py; missing = unavailable).
@@ -80,8 +84,17 @@ android {
     }
 
     defaultConfig {
-        applicationId = "io.github.ccch1mneyyy.dsh_app" + if (previewBuild) ".preview" else ""
-        manifestPlaceholders["dshAppLabel"] = if (previewBuild) "DSH Go Preview" else "DSH Go"
+        applicationId = "io.github.ccch1mneyyy.dsh_app"
+        applicationIdSuffix = when {
+            previewBuild -> ".preview"
+            sideBuild -> ".test"
+            else -> null
+        }
+        manifestPlaceholders["dshAppLabel"] = when {
+            previewBuild -> "DSH Go Preview"
+            sideBuild -> "DSH Go 测试"
+            else -> "DSH Go"
+        }
         // java.nio.file (symlinks while unpacking the rootfs) needs API 26.
         minSdk = 26
         // Target 28 like Termux, so the API 29+ exec restriction on app-private

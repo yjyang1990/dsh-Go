@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:typed_data';
 
 import 'api.dart' show TavernCharacter, TavernFailure, TavernRole, TavernUsage;
 import 'regex/regex_engine.dart';
@@ -49,17 +50,53 @@ enum TavernScriptErrorCode {
   hookFailure,
 }
 
-/// Persistent script identity. An iframe instance is deliberately not a key.
+enum TavernScriptPresetCarrierKind { inline, working }
+
+/// A current preset's actual carrier when it is not a saved preset record.
+/// Null chatId means the global carrier, including chats inheriting that slot.
+/// Working ids belong to one engine lifetime and never enter helper raw JSON.
+class TavernScriptPresetCarrier {
+  const TavernScriptPresetCarrier.inline({this.chatId}) : kind = TavernScriptPresetCarrierKind.inline, workingId = null;
+  const TavernScriptPresetCarrier.working({this.chatId, required String this.workingId})
+    : kind = TavernScriptPresetCarrierKind.working;
+
+  final TavernScriptPresetCarrierKind kind;
+  final String? chatId;
+  final String? workingId;
+  TavernJsonObject toJson() => {'kind': kind.name, 'chatId': ?chatId, 'workingId': ?workingId};
+  @override
+  bool operator ==(Object other) =>
+      other is TavernScriptPresetCarrier &&
+      kind == other.kind &&
+      chatId == other.chatId &&
+      workingId == other.workingId;
+  @override
+  int get hashCode => Object.hash(kind, chatId, workingId);
+}
+
+/// Script identity in its real store. An iframe instance is not a key.
+/// Without presetCarrier, a preset owner retains its saved-record semantics.
 class TavernScriptOwner {
-  const TavernScriptOwner({required this.kind, required this.scriptId, this.assetId});
+  const TavernScriptOwner({required this.kind, required this.scriptId, this.assetId, this.presetCarrier});
   final TavernScriptOwnerKind kind;
   final String? assetId;
   final String scriptId;
+  final TavernScriptPresetCarrier? presetCarrier;
+  TavernJsonObject toJson() => {
+    'kind': kind.name,
+    'scriptId': scriptId,
+    'assetId': ?assetId,
+    'presetCarrier': ?presetCarrier?.toJson(),
+  };
   @override
   bool operator ==(Object other) =>
-      other is TavernScriptOwner && kind == other.kind && assetId == other.assetId && scriptId == other.scriptId;
+      other is TavernScriptOwner &&
+      kind == other.kind &&
+      assetId == other.assetId &&
+      scriptId == other.scriptId &&
+      presetCarrier == other.presetCarrier;
   @override
-  int get hashCode => Object.hash(kind, assetId, scriptId);
+  int get hashCode => Object.hash(kind, assetId, scriptId, presetCarrier);
 }
 
 class TavernScriptContextSpec {
@@ -364,6 +401,28 @@ class TavernScriptSnapshot {
        variableSnapshots = List.unmodifiable(variableSnapshots),
        memberCharacterIds = List.unmodifiable(memberCharacterIds),
        _resourceRefs = _scriptObject(resourceRefs);
+
+  /// Derives a new chat state while retaining the captured resource values.
+  /// Resource getters remain detached even when snapshots share that capture.
+  TavernScriptSnapshot.withState(
+    TavernScriptSnapshot previous, {
+    required this.lastSeq,
+    String? pathRevision,
+    List<TavernScriptMessage>? messages,
+    List<TavernVariableSnapshot>? variableSnapshots,
+    required this.capabilities,
+  }) : context = previous.context,
+       engineEpoch = previous.engineEpoch,
+       pathRevision = pathRevision ?? previous.pathRevision,
+       messages = messages == null ? previous.messages : List.unmodifiable(messages),
+       variableSnapshots = variableSnapshots == null
+           ? previous.variableSnapshots
+           : List.unmodifiable(variableSnapshots),
+       presetId = previous.presetId,
+       personaId = previous.personaId,
+       memberCharacterIds = previous.memberCharacterIds,
+       _resourceRefs = previous._resourceRefs;
+
   final TavernScriptContext context;
   final String engineEpoch;
   final int lastSeq;
@@ -512,18 +571,37 @@ class TavernScriptDispatch {
   List<Object?> get args => _scriptCopy(_args)! as List<Object?>;
 }
 
+/// Mutable MVU event feedback is captured as finite JSON before transport.
+class TavernScriptMvuFeedback {
+  TavernScriptMvuFeedback({
+    required TavernJsonObject data,
+    List<TavernJsonObject>? commands,
+    TavernJsonObject? beforeData,
+  }) : _data = _scriptObject(data),
+       _commands = commands?.map(_scriptObject).toList(growable: false),
+       _beforeData = beforeData == null ? null : _scriptObject(beforeData);
+  final TavernJsonObject _data;
+  final List<TavernJsonObject>? _commands;
+  final TavernJsonObject? _beforeData;
+  TavernJsonObject get data => _scriptObject(_data);
+  List<TavernJsonObject>? get commands => _commands?.map(_scriptObject).toList();
+  TavernJsonObject? get beforeData => _beforeData == null ? null : _scriptObject(_beforeData);
+}
+
 class TavernScriptDispatchAck {
   TavernScriptDispatchAck({
     required this.eventId,
     this.status = TavernScriptAckStatus.completed,
     List<TavernScriptIssue> issues = const [],
     Map<String, String> revisions = const {},
+    this.mvu,
   }) : issues = List.unmodifiable(issues),
        revisions = Map.unmodifiable(revisions);
   final String eventId;
   final TavernScriptAckStatus status;
   final List<TavernScriptIssue> issues;
   final Map<String, String> revisions;
+  final TavernScriptMvuFeedback? mvu;
 }
 
 class TavernScriptEvent {
@@ -696,6 +774,29 @@ class TavernScriptGenerationLockAck {
   final List<TavernScriptIssue> issues;
 }
 
+class TavernMvuInitialization {
+  TavernMvuInitialization({
+    required this.chatId,
+    required this.enabled,
+    List<TavernScriptMessageRef> initializedRefs = const [],
+    List<TavernScriptIssue> issues = const [],
+  }) : initializedRefs = List.unmodifiable(initializedRefs),
+       issues = List.unmodifiable(issues);
+  final String chatId;
+  final bool enabled;
+  final List<TavernScriptMessageRef> initializedRefs;
+  final List<TavernScriptIssue> issues;
+}
+
+class TavernMvuParseResult {
+  TavernMvuParseResult({required TavernJsonObject data, List<TavernScriptIssue> issues = const []})
+    : _data = _scriptObject(data),
+      issues = List.unmodifiable(issues);
+  final TavernJsonObject _data;
+  final List<TavernScriptIssue> issues;
+  TavernJsonObject get data => _scriptObject(_data);
+}
+
 /// Persisted data, awaited native lifecycle and independent B2 background
 /// generation. App callback execution and STscript remain separate capabilities.
 abstract interface class TavernScriptBridge {
@@ -789,11 +890,20 @@ abstract interface class TavernScriptBridge {
   });
   bool stopScript(String executionId);
   Future<String> substituteMacros(String contextId, String text);
+  Future<TavernMvuInitialization> setMvuEnabled(String contextId, bool enabled);
+  Future<TavernMvuParseResult> parseMvuMessage(String contextId, String message, TavernJsonObject previousData);
   Future<TavernCharacter> replaceCharacterData(
     String contextId,
     String characterId,
     TavernJsonObject data, {
     String? expectedVersion,
+  });
+  Future<TavernScriptCharacterAvatarSnapshot> readCharacterAvatar(String contextId, String characterId);
+  Future<TavernScriptCharacterAvatarSnapshot> replaceCharacterAvatar(
+    String contextId,
+    String characterId,
+    Uint8List bytes, {
+    required String expectedVersion,
   });
   Future<List<TavernScriptBookBinding>> getContextBooks(String contextId);
   Future<TavernScriptBookSnapshot> readBook(String contextId, TavernScriptBookRef ref);
@@ -802,6 +912,43 @@ abstract interface class TavernScriptBridge {
     TavernScriptBookRef ref,
     TavernJsonObject book, {
     String? expectedVersion,
+  });
+  Future<TavernScriptWorldInfoSettingsSnapshot> updateWorldInfoSettings(
+    String contextId,
+    TavernJsonObject patch, {
+    String? expectedVersion,
+  });
+  Future<TavernScriptButtonsSnapshot> replaceScriptButtons(
+    String contextId,
+    List<TavernScriptButton> buttons, {
+    String? expectedVersion,
+  });
+  Future<TavernScriptBookDirectorySnapshot> getBookDirectory(String contextId);
+  Future<TavernScriptBookRef> resolveBook(String contextId, String nameOrHandle);
+  Future<TavernScriptBookSnapshot> createBook(String contextId, String name, TavernJsonObject raw);
+  Future<void> deleteBook(String contextId, TavernScriptBookRef ref, {required String expectedVersion});
+  Future<TavernScriptBookBindingsSnapshot> readBookBindings(String contextId, TavernScriptBookBindingsTarget target);
+  Future<TavernScriptBookBindingsSnapshot> updateBookBindings(
+    String contextId,
+    TavernScriptBookBindingsEdit edit, {
+    required String expectedVersion,
+  });
+  Future<TavernScriptPresetSnapshot> readPreset(String contextId, TavernScriptPresetRef ref);
+  Future<TavernScriptPresetSnapshot> replacePreset(
+    String contextId,
+    TavernScriptPresetRef ref,
+    TavernJsonObject raw, {
+    required String expectedVersion,
+  });
+  Future<TavernScriptRegexWriteSnapshot> readTavernRegexesForWrite(
+    String contextId,
+    TavernScriptRegexWriteTarget target,
+  );
+  Future<TavernScriptRegexWriteSnapshot> replaceTavernRegexes(
+    String contextId,
+    TavernScriptRegexWriteTarget target,
+    List<TavernScriptRegexWriteItem> items, {
+    required String expectedVersion,
   });
 }
 
@@ -1037,6 +1184,156 @@ class TavernScriptBookSnapshot {
   final String version;
   final TavernJsonObject _book;
   TavernJsonObject get book => _scriptObject(_book);
+}
+
+/// Global Helper settings projection. Book handles are read-only here.
+/// overflow_alert is a compatibility preference with no native scan effect.
+class TavernScriptWorldInfoSettingsSnapshot {
+  TavernScriptWorldInfoSettingsSnapshot({required this.version, required TavernJsonObject value})
+    : _value = _scriptObject(value);
+  final String version;
+  final TavernJsonObject _value;
+  TavernJsonObject get value => _scriptObject(_value);
+  TavernJsonObject toJson() => {'version': version, 'value': value};
+}
+
+class TavernScriptButton {
+  const TavernScriptButton({required this.name, required this.visible});
+  final String name;
+  final bool visible;
+  TavernJsonObject toJson() => {'name': name, 'visible': visible};
+}
+
+/// The persistent owner comes from the opened context, not a caller selector.
+class TavernScriptButtonsSnapshot {
+  TavernScriptButtonsSnapshot({required this.owner, required this.version, required List<TavernScriptButton> buttons})
+    : buttons = List.unmodifiable(buttons);
+  final TavernScriptOwner owner;
+  final String version;
+  final List<TavernScriptButton> buttons;
+  TavernJsonObject toJson() => {
+    'owner': owner.toJson(),
+    'version': version,
+    'buttons': [for (final button in buttons) button.toJson()],
+  };
+}
+
+/// Raw identity metadata; displayName is a label, never an implicit identity.
+class TavernScriptBookDirectoryEntry {
+  const TavernScriptBookDirectoryEntry({required this.ref, this.name, this.stWorldName, required this.readable});
+  final TavernScriptBookRef ref;
+  final String? name, stWorldName;
+  final bool readable;
+  String get handle => switch (ref) {
+    TavernScriptStandaloneBookRef(:final bookId) => 'standalone:$bookId',
+    TavernScriptEmbeddedBookRef(:final characterId) => 'embedded:$characterId',
+  };
+  String get displayName => name != null && name!.isNotEmpty
+      ? name!
+      : switch (ref) {
+          TavernScriptStandaloneBookRef(:final bookId) => bookId,
+          TavernScriptEmbeddedBookRef(:final characterId) => characterId,
+        };
+  TavernJsonObject toJson() => {
+    'ref': ref.toJson(),
+    'handle': handle,
+    'name': ?name,
+    'displayName': displayName,
+    'stWorldName': ?stWorldName,
+    'readable': readable,
+  };
+}
+
+class TavernScriptBookDirectorySnapshot {
+  TavernScriptBookDirectorySnapshot({
+    required this.version,
+    required List<TavernScriptBookDirectoryEntry> books,
+    List<TavernScriptIssue> issues = const [],
+  }) : books = List.unmodifiable(books),
+       issues = List.unmodifiable(issues);
+  final String version;
+  final List<TavernScriptBookDirectoryEntry> books;
+  final List<TavernScriptIssue> issues;
+}
+
+enum TavernScriptBookBindingScope { global, character, chat, persona }
+
+class TavernScriptBookBindingsTarget {
+  const TavernScriptBookBindingsTarget({required this.scope, this.targetId});
+  final TavernScriptBookBindingScope scope;
+  final String? targetId;
+}
+
+class TavernScriptBookBindingsEdit {
+  TavernScriptBookBindingsEdit({
+    required this.scope,
+    this.targetId,
+    required this.primary,
+    List<TavernScriptBookRef> additional = const [],
+  }) : additional = List.unmodifiable(additional);
+  final TavernScriptBookBindingScope scope;
+  final String? targetId;
+  final TavernScriptBookRef? primary;
+  final List<TavernScriptBookRef> additional;
+}
+
+class TavernScriptBookBindingsSnapshot {
+  TavernScriptBookBindingsSnapshot({
+    required this.scope,
+    this.targetId,
+    required this.version,
+    required this.primary,
+    List<TavernScriptBookRef> additional = const [],
+    List<TavernScriptBookRef> inherited = const [],
+  }) : additional = List.unmodifiable(additional),
+       inherited = List.unmodifiable(inherited);
+  final TavernScriptBookBindingScope scope;
+  final String? targetId;
+  final String version;
+  final TavernScriptBookRef? primary;
+  final List<TavernScriptBookRef> additional, inherited;
+}
+
+/// A detached binary read. The version covers the authoritative carrier and
+/// the selected avatar bytes; cache metadata versions are not write tokens.
+class TavernScriptCharacterAvatarSnapshot {
+  TavernScriptCharacterAvatarSnapshot({required this.characterId, required this.version, required Uint8List? bytes})
+    : _bytes = bytes == null ? null : Uint8List.fromList(bytes);
+
+  final String characterId;
+  final String version;
+  final Uint8List? _bytes;
+  Uint8List? get bytes => _bytes == null ? null : Uint8List.fromList(_bytes);
+
+  TavernJsonObject toJson() => {'characterId': characterId, 'version': version, 'bytes': bytes};
+}
+
+/// Stored identity and the context's unsaved current ST preset are distinct.
+enum TavernScriptPresetRefKind { stored, current }
+
+class TavernScriptPresetRef {
+  const TavernScriptPresetRef.stored(String this.presetId) : kind = TavernScriptPresetRefKind.stored;
+  const TavernScriptPresetRef.current() : kind = TavernScriptPresetRefKind.current, presetId = null;
+  final TavernScriptPresetRefKind kind;
+  final String? presetId;
+  TavernJsonObject toJson() => {'kind': kind.name, 'presetId': ?presetId};
+}
+
+/// Complete ST raw input. Helper's public preset shape is an App projection.
+class TavernScriptPresetSnapshot {
+  TavernScriptPresetSnapshot({
+    required this.ref,
+    required this.version,
+    required TavernJsonObject source,
+    required TavernJsonObject raw,
+  }) : _source = _scriptObject(source),
+       _raw = _scriptObject(raw);
+  final TavernScriptPresetRef ref;
+  final String version;
+  final TavernJsonObject _source, _raw;
+  TavernJsonObject get source => _scriptObject(_source);
+  TavernJsonObject get raw => _scriptObject(_raw);
+  TavernJsonObject toJson() => {'ref': ref.toJson(), 'version': version, 'source': source, 'raw': raw};
 }
 
 enum TavernScriptPromptRole { system, user, assistant }
@@ -1476,6 +1773,64 @@ class TavernScriptRegex {
   final RegexScript execution;
   final bool enabled, effective;
   final List<TavernRegexDiagnostic> diagnostics;
+}
+
+/// One physical writable source, never the merged execution list.
+enum TavernScriptRegexWriteKind { globalInline, globalLibrary, character, preset }
+
+class TavernScriptRegexWriteTarget {
+  const TavernScriptRegexWriteTarget.globalInline()
+    : kind = TavernScriptRegexWriteKind.globalInline,
+      characterId = null,
+      preset = null;
+  const TavernScriptRegexWriteTarget.globalLibrary()
+    : kind = TavernScriptRegexWriteKind.globalLibrary,
+      characterId = null,
+      preset = null;
+  const TavernScriptRegexWriteTarget.character({required String this.characterId})
+    : kind = TavernScriptRegexWriteKind.character,
+      preset = null;
+  const TavernScriptRegexWriteTarget.preset({required TavernScriptPresetRef this.preset})
+    : kind = TavernScriptRegexWriteKind.preset,
+      characterId = null;
+  final TavernScriptRegexWriteKind kind;
+  final String? characterId;
+  final TavernScriptPresetRef? preset;
+  TavernJsonObject toJson() => {'kind': kind.name, 'characterId': ?characterId, 'preset': ?preset?.toJson()};
+}
+
+/// engineId is a managed-library identity; raw ST id is not a storage key.
+class TavernScriptRegexWriteItem {
+  TavernScriptRegexWriteItem({this.engineId, required TavernJsonObject raw}) : _raw = _scriptObject(raw);
+  final String? engineId;
+  final TavernJsonObject _raw;
+  TavernJsonObject get raw => _scriptObject(_raw);
+  TavernJsonObject toJson() => {'engineId': ?engineId, 'raw': raw};
+}
+
+class TavernScriptRegexWriteSnapshot {
+  TavernScriptRegexWriteSnapshot({
+    required this.target,
+    required this.version,
+    required TavernJsonObject source,
+    required List<TavernScriptRegexWriteItem> items,
+    List<TavernRegexDiagnostic> diagnostics = const [],
+  }) : _source = _scriptObject(source),
+       items = List.unmodifiable(items),
+       diagnostics = List.unmodifiable(diagnostics);
+  final TavernScriptRegexWriteTarget target;
+  final String version;
+  final TavernJsonObject _source;
+  TavernJsonObject get source => _scriptObject(_source);
+  final List<TavernScriptRegexWriteItem> items;
+  final List<TavernRegexDiagnostic> diagnostics;
+  TavernJsonObject toJson() => {
+    'target': target.toJson(),
+    'version': version,
+    'source': source,
+    'items': [for (final item in items) item.toJson()],
+    'diagnostics': [for (final issue in diagnostics) issue.toJson()],
+  };
 }
 
 const _scriptRequestKeys = <String>{

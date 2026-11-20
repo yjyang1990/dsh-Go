@@ -63,7 +63,7 @@ class LegacyMacroEngine {
   }
 }
 
-typedef _LegacyPass = ({RegExp regex, Object? Function(Match) replace});
+typedef _LegacyPass = ({RegExp regex, Object? Function(Match) replace, bool preserveOnNull});
 
 // Patterns include fixed passes and escaped environment names. Only compiled
 // regex objects are shared; replacements retain this evaluation's captures.
@@ -88,7 +88,12 @@ _LegacyPass _legacyPass(
   Object? Function(Match) replace, {
   bool caseSensitive = false,
   bool multiLine = false,
-}) => (regex: _legacyPattern(pattern, caseSensitive: caseSensitive, multiLine: multiLine), replace: replace);
+  bool preserveOnNull = false,
+}) => (
+  regex: _legacyPattern(pattern, caseSensitive: caseSensitive, multiLine: multiLine),
+  replace: replace,
+  preserveOnNull: preserveOnNull,
+);
 
 class _LegacyEvaluation {
   _LegacyEvaluation(
@@ -101,8 +106,7 @@ class _LegacyEvaluation {
     this.inheritOriginal = true,
     this.postProcess,
     this.prepareCharacterFieldsOnDemand = false,
-  }) : contentHash = MacroEngine.stringHash(original),
-       chatIdHash = _truthy(context.chatIdHash) ? context.chatIdHash : MacroEngine.stringHash(context.chatId),
+  }) : chatIdHash = _truthy(context.chatIdHash) ? context.chatIdHash : MacroEngine.stringHash(context.chatId),
        replaceCharacterCard = replaceCharacterCard ?? context.replaceCharacterCard,
        // Only the common history, dice and clock helpers are used. The new
        // parser/evaluate/field preparation never handles a legacy expansion.
@@ -118,7 +122,7 @@ class _LegacyEvaluation {
   final LegacyMacroEngine engine;
   final MacroContext context;
   final Map<String, String> overrides;
-  final int contentHash;
+  int get contentHash => common.contentHash;
   final num chatIdHash;
   final bool replaceCharacterCard;
   final bool prepareCharacterFieldsOnDemand;
@@ -141,6 +145,16 @@ class _LegacyEvaluation {
       ..._instructPasses(env),
       ..._variablePasses(context.localVariables, global: false),
       ..._variablePasses(context.globalVariables, global: true),
+      _legacyPass(
+        r'{{get_message_variable::([^{}]*)}}',
+        (match) => _messageVariableMacro(context, match[1]!),
+        preserveOnNull: true,
+      ),
+      _legacyPass(
+        r'{{format_message_variable::([^{}]*)}}',
+        (match) => _messageVariableMacro(context, match[1]!, format: true),
+        preserveOnNull: true,
+      ),
       _legacyPass(r'{{newline}}', (_) => '\n'),
       _legacyPass(r'(?:\r?\n)*{{trim}}(?:\r?\n)*', (_) => ''),
       _legacyPass(r'{{noop}}', (_) => ''),
@@ -205,6 +219,9 @@ class _LegacyEvaluation {
         // Environment values above were sanitized separately by MacrosParser.
         text = text.replaceAllMapped(pass.regex, (match) {
           final value = pass.replace(match);
+          if (value == null && pass.preserveOnNull) {
+            return match[0]!;
+          }
           final callback = postProcess;
           return _jsString(callback == null ? value : callback(value));
         });
