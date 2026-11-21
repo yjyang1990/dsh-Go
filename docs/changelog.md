@@ -2,6 +2,16 @@
 
 每个版本先中文、后英文。发版时把对应版本的正文（不含版本标题）作为 Release 正文，见 `docs/release.md`。
 
+## 1.3.1 · 2026-11-21
+
+### 中文
+
+- **修复图片显示。** 对话中返回并保存在本机项目目录或临时目录的图片现在可以正常预览。
+
+### English
+
+- **Fixed image previews.** Images returned in chats and saved in the local project or temporary directory can now be previewed correctly.
+
 ## 1.3.0 · 2026-11-21
 
 ### 中文

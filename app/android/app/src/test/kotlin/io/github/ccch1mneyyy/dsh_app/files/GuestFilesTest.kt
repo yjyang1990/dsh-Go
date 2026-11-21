@@ -31,6 +31,9 @@ class GuestFilesTest {
     private fun resolve(path: String, rootfs: File = root): File? =
         GuestFiles.resolve(rootfs, path, phone.absolutePath)
 
+    private fun resolveRuntime(path: String, runtimeTemp: File): File? =
+        GuestFiles.resolve(root, path, phone.absolutePath, runtimeTemp)
+
     private fun assertResolved(expected: File, path: String, rootfs: File = root) {
         val actual = resolve(path, rootfs)
         assertNotNull(path, actual)
@@ -43,6 +46,20 @@ class GuestFilesTest {
     @Test fun regularGuestFileResolvesWithoutLinks() {
         val image = file("root/workspace/image.png")
         assertResolved(image, "/root/workspace/image.png")
+    }
+
+    @Test fun physicalRuntimeTempFilesResolveWithoutOpeningOtherPrivateFiles() {
+        val runtimeTemp = File(temp.root, "cache/proot-tmp").apply { mkdirs() }
+        val image = File(runtimeTemp, "generated/dsh-image-result.png").apply {
+            parentFile.mkdirs()
+            writeText("temporary image")
+        }
+        val outside = File(temp.root, "cache/other/private.png").apply {
+            parentFile.mkdirs()
+            writeText("private")
+        }
+        assertEquals(image.canonicalFile, resolveRuntime(image.absolutePath, runtimeTemp)?.canonicalFile)
+        assertNull(resolveRuntime(outside.absolutePath, runtimeTemp))
     }
 
     @Test fun physicalRootfsInputsResolveWithEitherRootSpelling() {

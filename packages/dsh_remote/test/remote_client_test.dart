@@ -388,6 +388,30 @@ void main() {
       );
     });
 
+    test('remote workspace file reads restore JSON object attachment bytes', () async {
+      final target = await signInAndFindHost();
+      final image = <int>[0, 1, 2, 127, 128, 254, 255];
+      host.handlers['workspaceFiles/stat'] = (args) => {
+        'ok': true,
+        'value': {'absolutePath': '/private/tmp/dsh-go-pair.png', 'version': 'image-v1', 'bytes': image.length},
+      };
+      host.handlers['workspaceFiles/readBytes'] = (args) => {
+        'ok': true,
+        'value': {'data': null, 'version': 'image-v1', 'bytes': image.length, 'offset': 0, 'eof': true},
+        'attachments': [
+          {
+            'path': ['data'],
+            'bytes': {for (var index = 0; index < image.length; index++) '$index': image[index]},
+          },
+        ],
+      };
+      final client = await account.connectHost(target, muxOptions: fastMux);
+      final received = <int>[];
+      final count = await client.readFile('session-1', '/private/tmp/dsh-go-pair.png', onChunk: received.addAll);
+      expect(count, image.length);
+      expect(received, image);
+    });
+
     test('large prompts and responses use chunked transfers', () async {
       final target = await signInAndFindHost();
       String? receivedImage;

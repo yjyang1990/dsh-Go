@@ -4,6 +4,7 @@ import android.content.Context
 import io.github.ccch1mneyyy.dsh_app.runtime.PhoneStorage
 import io.github.ccch1mneyyy.dsh_app.runtime.TawcrootLinks
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.LinkOption
 
@@ -25,9 +26,10 @@ object GuestFiles {
 
     /** Host file for a guest or physical-rootfs [path]; null unless it is a readable regular file. */
     fun resolve(context: Context, path: String): File? =
-        resolve(rootfs(context), path, PhoneStorage.hostRoot())
+        resolve(rootfs(context), path, PhoneStorage.hostRoot(), File(context.cacheDir, "proot-tmp"))
 
-    internal fun resolve(rootfs: File, path: String, phoneRoot: String): File? {
+    internal fun resolve(rootfs: File, path: String, phoneRoot: String, runtimeTemp: File? = null): File? {
+        resolveRuntimeTemp(path, runtimeTemp)?.let { return it }
         if (!path.startsWith("/")) return null
         val rootPaths = listOf(rootfs.absolutePath, rootfs.canonicalPath)
         // Direct media results already name the physical rootfs before any symlink is followed.
@@ -77,6 +79,30 @@ object GuestFiles {
         }
         val file = hostOf(rootfs, resolved, phoneRoot)
         return file.takeIf { Files.isRegularFile(it.toPath(), LinkOption.NOFOLLOW_LINKS) && it.canRead() }
+    }
+
+    private fun resolveRuntimeTemp(path: String, runtimeTemp: File?): File? {
+        if (runtimeTemp == null) return null
+        val root = try {
+            runtimeTemp.canonicalFile
+        } catch (_: IOException) {
+            return null
+        }
+        val candidate = try {
+            File(path).canonicalFile
+        } catch (_: IOException) {
+            return null
+        }
+        val rootPath = root.toPath()
+        val candidatePath = candidate.toPath()
+        if (!candidatePath.startsWith(rootPath) ||
+            candidatePath == rootPath ||
+            !Files.isRegularFile(candidatePath, LinkOption.NOFOLLOW_LINKS) ||
+            !candidate.canRead()
+        ) {
+            return null
+        }
+        return candidate
     }
 
     /** Host path of resolved guest [segments] (no symlinks left to follow in them). */
