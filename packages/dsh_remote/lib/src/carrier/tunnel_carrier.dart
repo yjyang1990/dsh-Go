@@ -516,70 +516,12 @@ class RemoteTunnelCarrier extends DshCarrier implements WorkspaceUploadCarrier {
   RpcResult _parseResult(String endpoint, Object? response) {
     final map = asMap(response);
     if (map == null) throw DshProtocolException('$endpoint: invalid remote Gateway result');
-    if (map['ok'] == true) {
-      final value = asMap(map['value']);
-      if (base64ResultEndpoints.contains(endpoint) && value != null && value['data'] == null) {
-        final attachments = map['attachments'];
-        if (attachments is List) {
-          for (final item in attachments) {
-            final attachment = asMap(item);
-            final path = attachment?['path'];
-            final bytes = _remoteAttachmentBytes(attachment?['bytes']);
-            if (path is List && path.length == 1 && path.first == 'data' && bytes != null) {
-              final normalized = Map<String, Object?>.from(value);
-              normalized['data'] = base64Encode(bytes);
-              return RpcOk(normalized);
-            }
-          }
-        }
-      }
-      return RpcOk(map['value']);
-    }
+    if (map['ok'] == true) return RpcOk(map['value']);
     final error = asMap(map['error']);
     if (map['ok'] == false && error != null && error['code'] is String && error['message'] is String) {
       return RpcError(DshRemoteException.fromJson(error));
     }
     throw DshProtocolException('$endpoint: invalid remote Gateway failure');
-  }
-
-  Uint8List? _remoteAttachmentBytes(Object? value) {
-    if (value is Uint8List) return value;
-    if (value is String) {
-      try {
-        return base64Decode(value);
-      } on FormatException {
-        return null;
-      }
-    }
-    if (value is List) {
-      final bytes = <int>[];
-      for (final item in value) {
-        if (item is! num || !item.isFinite || item < 0 || item > 255 || item != item.roundToDouble()) return null;
-        bytes.add(item.toInt());
-      }
-      return Uint8List.fromList(bytes);
-    }
-    if (value is Map) {
-      final entries = <int, int>{};
-      for (final entry in value.entries) {
-        final index = int.tryParse('${entry.key}');
-        final byte = entry.value;
-        if (index == null ||
-            index < 0 ||
-            byte is! num ||
-            !byte.isFinite ||
-            byte < 0 ||
-            byte > 255 ||
-            byte != byte.roundToDouble()) {
-          return null;
-        }
-        entries[index] = byte.toInt();
-      }
-      if (entries.length != value.length || (entries.isNotEmpty && entries.keys.last != entries.length - 1))
-        return null;
-      return Uint8List.fromList([for (var index = 0; index < entries.length; index++) entries[index]!]);
-    }
-    return null;
   }
 
   Future<Object?> _callTransferred(
