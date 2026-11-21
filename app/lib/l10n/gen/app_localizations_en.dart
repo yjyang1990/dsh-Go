@@ -3131,6 +3131,9 @@ class L10nEn extends L10n {
   String get botsPetWhaleGirl => 'Whale girl';
 
   @override
+  String get botsPetPinkFish => 'Pink fish';
+
+  @override
   String get botsPetNone => 'None';
 
   @override
@@ -24418,6 +24421,12 @@ class L10nEn extends L10n {
 
   @override
   String get tavernCanvasReloaded => 'The page reloaded';
+
+  @override
+  String get tavernLowPower => 'Power-saving pages';
+
+  @override
+  String get tavernLowPowerSubtitle => 'No blur or looping animations in cards\' web pages, so the phone runs smoother';
 
   @override
   String tavernGroupSpeaking(String name) {

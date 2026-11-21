@@ -22,6 +22,7 @@ import '../../plugins/native/message_plugin_menu.dart';
 import '../../share/share_entry.dart' show shareReply;
 import '../render/markdown_body.dart';
 import 'message_actions.dart';
+import 'message_selection.dart';
 import 'stream_row.dart';
 import 'thinking_pill.dart';
 
@@ -139,7 +140,7 @@ class _AssistantMessageState extends State<AssistantMessage> {
   Widget _markdown(String text, bool streaming) {
     final reveal = _reveal = _reveal || (streaming && _startedEmpty && AppMotion.fluid(context));
     if (_body == null || _bodyText != text || _bodyStreaming != streaming || _bodyReveal != reveal) {
-      // Long-press opens the menu; selecting text is one of its entries.
+      // Selection is the message's own (MessageSelection around the text).
       // repairBareViews: a model that forgets the ```dsh-ui fence still gets
       // its view drawn instead of a wall of JSON.
       _body = MarkdownBody(text: text, streaming: streaming, reveal: reveal, selectable: false, repairBareViews: true);
@@ -203,7 +204,12 @@ class _AssistantMessageState extends State<AssistantMessage> {
             if (text.isNotEmpty && !_textAfterThinking) const SizedBox(height: 8),
           ],
           if (text.isNotEmpty)
-            _textAfterThinking ? _FirstTextIn(child: _markdown(text, streaming)) : _markdown(text, streaming),
+            MessageSelection(
+              text: text,
+              onQuote: widget.onQuote,
+              onMore: () => _menu(text),
+              child: _textAfterThinking ? _FirstTextIn(child: _markdown(text, streaming)) : _markdown(text, streaming),
+            ),
           if (item.interrupted) _InterruptedMark(stopped: widget.stopped),
           // 一轮结束时和输入条上的胶囊同一节奏展开:胶囊收回多少,这里长出
           // 多少,回答不会先被顶上去再落回来。打开对话时已结束的轮直接展开。
@@ -234,7 +240,14 @@ class _AssistantMessageState extends State<AssistantMessage> {
       ),
     );
     // 一条回复是读屏里的一个分组,里面的段落、标题照常逐个读。
-    final message = Semantics(key: const ValueKey('reply'), container: true, explicitChildNodes: true, child: reply);
+    // A screen reader's long-press opens the menu (a finger's selects text).
+    final message = Semantics(
+      key: const ValueKey('reply'),
+      container: true,
+      explicitChildNodes: true,
+      onLongPress: streaming || text.isEmpty ? null : () => _menu(text),
+      child: reply,
+    );
     return _waited ? _HandOff(waiting: false, child: message) : message;
   }
 

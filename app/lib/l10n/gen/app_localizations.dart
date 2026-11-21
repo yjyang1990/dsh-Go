@@ -5474,6 +5474,12 @@ abstract class L10n {
   /// **'鲸娘'**
   String get botsPetWhaleGirl;
 
+  /// No description provided for @botsPetPinkFish.
+  ///
+  /// In zh, this message translates to:
+  /// **'小粉鱼'**
+  String get botsPetPinkFish;
+
   /// No description provided for @botsPetNone.
   ///
   /// In zh, this message translates to:
@@ -42505,6 +42511,18 @@ abstract class L10n {
   /// In zh, this message translates to:
   /// **'画面重新加载了'**
   String get tavernCanvasReloaded;
+
+  /// No description provided for @tavernLowPower.
+  ///
+  /// In zh, this message translates to:
+  /// **'省电渲染'**
+  String get tavernLowPower;
+
+  /// No description provided for @tavernLowPowerSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'去掉卡片网页里的模糊和循环动画，手机更流畅'**
+  String get tavernLowPowerSubtitle;
 
   /// No description provided for @tavernGroupSpeaking.
   ///
