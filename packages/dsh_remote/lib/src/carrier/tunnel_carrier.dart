@@ -516,7 +516,28 @@ class RemoteTunnelCarrier extends DshCarrier implements WorkspaceUploadCarrier {
   RpcResult _parseResult(String endpoint, Object? response) {
     final map = asMap(response);
     if (map == null) throw DshProtocolException('$endpoint: invalid remote Gateway result');
-    if (map['ok'] == true) return RpcOk(map['value']);
+    if (map['ok'] == true) {
+      final value = asMap(map['value']);
+      if (base64ResultEndpoints.contains(endpoint) && value != null && value['data'] == null) {
+        final attachments = map['attachments'];
+        if (attachments is List) {
+          for (final item in attachments) {
+            final attachment = asMap(item);
+            final path = attachment?['path'];
+            final bytes = attachment?['bytes'];
+            if (path is List &&
+                path.length == 1 &&
+                path.first == 'data' &&
+                (bytes is String || bytes is List || bytes is Uint8List)) {
+              final normalized = Map<String, Object?>.from(value);
+              normalized['data'] = bytes is Uint8List ? base64Encode(bytes) : bytes;
+              return RpcOk(normalized);
+            }
+          }
+        }
+      }
+      return RpcOk(map['value']);
+    }
     final error = asMap(map['error']);
     if (map['ok'] == false && error != null && error['code'] is String && error['message'] is String) {
       return RpcError(DshRemoteException.fromJson(error));

@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# Builds dsh-go APKs. Every APK that goes onto a phone or emulator comes from
-# here, dev and release alike: each build gets a fresh versionCode (the build
+# Builds dsh-go preview APKs. Every APK that goes onto a phone or emulator comes from
+# here, dev and preview alike: each build gets a fresh versionCode (the build
 # minute, see tooling/build_number.py), so it installs over the previous one and
 # the system refreshes what it cached for the old build (icons included).
 #
-#   tooling/build-apk.sh                       release, arm64 (phone)
-#   tooling/build-apk.sh -f x64                release, x64 (emulator)
-#   tooling/build-apk.sh -f all                both flavors with one build number (local testing only)
+#   tooling/build-apk.sh                       preview, arm64 (phone)
+#   tooling/build-apk.sh -f x64                preview, x64 (emulator)
+#   tooling/build-apk.sh -f all                both preview flavors with one build number (local testing only)
 #   tooling/build-apk.sh --debug -f x64 -t lib/dev/runtime_probe_main.dart
 #   tooling/build-apk.sh --dry-run -f all      print the commands, build nothing
 #   tooling/build-apk.sh -- --dart-define=K=V  extra flags for `flutter build apk`
 #
 #   -f, --flavor arm64|x64|all       default arm64
-#   --release | --debug | --profile  default --release
+#   --release | --debug | --profile  default --profile
 #   -t, --target FILE                Dart entry point, relative to app/
 #   -n, --build-number N             use 2..2100000000 instead of the build minute (never lower than installed)
 #   --build-name X.Y.Z               version name instead of app/pubspec.yaml's
@@ -41,7 +41,9 @@ OUT="$APP/build/app/outputs/flutter-apk"
 usage() { sed -n '2,26p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 die() { echo "build-apk: $*" >&2; exit 1; }
 
-flavor=arm64 mode=release target='' code='' name='' dry=0 keep_daemon=0 want_beta=0 side=0 companion=1 no_companion=0
+flavor=arm64 mode=profile target='' code='' name='' dry=0 keep_daemon=0 want_beta=0 side=0 companion=0 no_companion=1
+export DSH_GO_PREVIEW=1
+export DSH_GO_PREVIEW_SIGNING=${DSH_GO_PREVIEW_SIGNING:-${HOME:?}/.config/dsh-go-preview/signing.properties}
 extra=()
 while (($#)); do
   case "$1" in
@@ -84,6 +86,7 @@ done
 # Version name: pubspec's `version:` without the `+N` placeholder.
 if [[ -z $name ]]; then
   name=$(sed -n 's/^version:[[:space:]]*\([^+[:space:]]*\).*/\1/p' "$APP/pubspec.yaml")
+  [[ $name == *-preview ]] || name="$name-preview"
 fi
 [[ $name =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || die "not a version name: '$name'"
 

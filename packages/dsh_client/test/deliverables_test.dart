@@ -253,6 +253,44 @@ void main() {
       );
     });
 
+    test('HTTP carrier, missing readBytes route: falls back to GET /api/file', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final seen = <String>[];
+      server.listen((request) async {
+        seen.add('${request.method} ${request.uri.path}');
+        if (request.method == 'POST' && request.uri.path == '/api/workspaceFiles/stat') {
+          final envelope = jsonDecode(await utf8.decoder.bind(request).join()) as Map;
+          request.response
+            ..headers.contentType = ContentType.json
+            ..write(
+              jsonEncode({
+                'type': 'server-response',
+                'rpcId': envelope['rpcId'],
+                'result': {
+                  'ok': true,
+                  'value': {'absolutePath': '/root/workspace/out/chart.png', 'version': 'v', 'bytes': 4},
+                },
+              }),
+            );
+        } else if (request.method == 'POST' && request.uri.path == '/api/workspaceFiles/readBytes') {
+          request.response
+            ..statusCode = 404
+            ..write('NOT_FOUND');
+        } else if (request.uri.path == '/api/file') {
+          request.response
+            ..headers.contentType = ContentType('image', 'png')
+            ..add([1, 2, 3, 4]);
+        }
+        await request.response.close();
+      });
+      addTearDown(() => server.close(force: true));
+      final client = DshClient(DshConnection(Uri.parse('http://127.0.0.1:${server.port}')));
+      final bytes = await client.readFileBytes('s', 'out/chart.png', maxBytes: 4);
+      expect(bytes, [1, 2, 3, 4]);
+      expect(seen, contains('POST /api/workspaceFiles/readBytes'));
+      expect(seen.last, 'GET /api/file');
+    });
+
     test('HTTP fallback enforces maxBytes while reading a stale-size response', () async {
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       server.listen((request) async {

@@ -121,11 +121,13 @@ extension DshFilesApi on DshClient {
         total,
         stat.version.isEmpty ? null : stat.version,
       );
-    } on DshProtocolException {
-      // An HTTP answer this client cannot decode: the plain file route, if
-      // nothing has been handed out yet.
+    } on Object catch (error) {
+      // An HTTP answer this client cannot decode, or an older Host without the
+      // byte-window route, can use the plain file route if no bytes were read.
+      final endpointUnavailable = error is DshHttpException && const {404, 405, 501}.contains(error.statusCode);
+      final canFallback = error is DshProtocolException || endpointUnavailable;
       final carrier = this.carrier;
-      if (carrier is! DshHttpCarrier || delivered > 0) rethrow;
+      if (!canFallback || carrier is! DshHttpCarrier || delivered > 0) rethrow;
       final bytes = await _readWhole(carrier, stat.absolutePath.isEmpty ? path : stat.absolutePath, path, maxBytes);
       await onChunk(bytes);
       onProgress?.call(bytes.length, total ?? bytes.length);

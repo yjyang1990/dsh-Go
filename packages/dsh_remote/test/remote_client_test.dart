@@ -312,6 +312,82 @@ void main() {
       );
     });
 
+    test('remote workspace file reads decode base64 byte windows', () async {
+      final target = await signInAndFindHost();
+      final image = <int>[0, 1, 2, 127, 128, 254, 255];
+      host.handlers['workspaceFiles/stat'] = (args) {
+        expect(args, {'workspaceFileScopeId': 'session-1', 'path': '/tmp/dsh-go-pair.png'});
+        return {
+          'ok': true,
+          'value': {'absolutePath': '/tmp/dsh-go-pair.png', 'version': 'image-v1', 'bytes': image.length},
+        };
+      };
+      host.handlers['workspaceFiles/readBytes'] = (args) {
+        expect(args['workspaceFileScopeId'], 'session-1');
+        expect(args['path'], '/tmp/dsh-go-pair.png');
+        final options = (args['options']! as Map).cast<String, Object?>();
+        final range = (options['range']! as Map).cast<String, Object?>();
+        expect(range['offset'], 0);
+        return {
+          'ok': true,
+          'value': {
+            'data': base64Encode(image),
+            'version': 'image-v1',
+            'bytes': image.length,
+            'offset': 0,
+            'eof': true,
+          },
+        };
+      };
+      final client = await account.connectHost(target, muxOptions: fastMux);
+      final received = <int>[];
+      final count = await client.readFile('session-1', '/tmp/dsh-go-pair.png', onChunk: received.addAll);
+      expect(count, image.length);
+      expect(received, image);
+      expect(
+        host.calls.map((call) => call.$1),
+        containsAllInOrder(['workspaceFiles/stat', 'workspaceFiles/readBytes']),
+      );
+    });
+
+    test('remote workspace file reads restore JSON attachment bytes', () async {
+      final target = await signInAndFindHost();
+      final image = <int>[0, 1, 2, 127, 128, 254, 255];
+      host.handlers['workspaceFiles/stat'] = (args) {
+        expect(args, {'workspaceFileScopeId': 'session-1', 'path': '/tmp/dsh-go-pair.png'});
+        return {
+          'ok': true,
+          'value': {'absolutePath': '/tmp/dsh-go-pair.png', 'version': 'image-v1', 'bytes': image.length},
+        };
+      };
+      host.handlers['workspaceFiles/readBytes'] = (args) {
+        expect(args['workspaceFileScopeId'], 'session-1');
+        expect(args['path'], '/tmp/dsh-go-pair.png');
+        final options = (args['options']! as Map).cast<String, Object?>();
+        final range = (options['range']! as Map).cast<String, Object?>();
+        expect(range['offset'], 0);
+        return {
+          'ok': true,
+          'value': {'data': null, 'version': 'image-v1', 'bytes': image.length, 'offset': 0, 'eof': true},
+          'attachments': [
+            {
+              'path': ['data'],
+              'bytes': base64Encode(image),
+            },
+          ],
+        };
+      };
+      final client = await account.connectHost(target, muxOptions: fastMux);
+      final received = <int>[];
+      final count = await client.readFile('session-1', '/tmp/dsh-go-pair.png', onChunk: received.addAll);
+      expect(count, image.length);
+      expect(received, image);
+      expect(
+        host.calls.map((call) => call.$1),
+        containsAllInOrder(['workspaceFiles/stat', 'workspaceFiles/readBytes']),
+      );
+    });
+
     test('large prompts and responses use chunked transfers', () async {
       final target = await signInAndFindHost();
       String? receivedImage;
